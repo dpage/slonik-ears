@@ -245,7 +245,7 @@ func (c Config) EngineConfig(log *slog.Logger) EngineConfig {
 	}
 }
 
-// FinalTimeout is the ASR client's request timeout.
+// FinalTimeoutDuration is the ASR client's request timeout.
 func (c Config) FinalTimeoutDuration() time.Duration {
 	return time.Duration(c.FinalTimeoutSec) * time.Second
 }

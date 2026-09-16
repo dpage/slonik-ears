@@ -1,0 +1,72 @@
+# golangci-lint configuration (v2 schema).
+#
+# The aim is a small set of linters that catch real mistakes, not a wall of
+# style complaints that trains everybody to ignore CI.
+
+version: "2"
+
+run:
+  timeout: 5m
+  build-tags:
+    - cgo
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose     # an undrained HTTP body leaks a connection, and this
+                    # program makes an HTTP request per utterance
+    - contextcheck  # dropping a context in the middle of the pipeline would
+                    # mean shutdown stops working
+    - durationcheck # multiplying two durations is never what anybody meant
+    - errorlint     # %w and errors.Is, rather than string comparison
+    - misspell
+    - nilerr
+    - noctx         # every outbound request should carry a context
+    - revive
+    - unconvert
+    - wastedassign
+
+  settings:
+    errcheck:
+      # Formatted writes to an http.ResponseWriter or to stdout fail only when
+      # the peer has already gone, which every caller here handles by carrying
+      # on regardless.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (net/http.ResponseWriter).Write
+    misspell:
+      # British English in prose. CSS and Go identifiers are not prose, hence
+      # the exclusion for the file holding the fallback page's stylesheet.
+      locale: UK
+    revive:
+      rules:
+        - name: exported
+          # The config structs are deliberately EventConfig/ServerConfig/
+          # AuthConfig for symmetry, so do not complain that one of them
+          # stutters with its package name.
+          arguments:
+            - disableStutteringCheck
+        - name: unexported-return
+          disabled: true
+
+  exclusions:
+    generated: lax
+    rules:
+      # Tests may be blunter than production code.
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - errcheck
+          - noctx
+          - revive
+      # This file embeds a CSS fallback page; "color" is a CSS keyword, not a
+      # spelling mistake.
+      - path: internal/server/web\.go
+        linters:
+          - misspell
+
+formatters:
+  enable:
+    - gofmt

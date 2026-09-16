@@ -168,7 +168,7 @@ func (c *WhisperClient) Transcribe(ctx context.Context, pcm []float32, sampleRat
 	if err != nil {
 		return Result{}, fmt.Errorf("asr: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {

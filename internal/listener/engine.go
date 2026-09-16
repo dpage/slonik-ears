@@ -132,6 +132,14 @@ func NewEngine(cfg EngineConfig, src audio.Source, transcriber asr.Transcriber, 
 }
 
 // Run processes audio until the source ends or ctx is cancelled.
+//
+// The worker and status contexts are deliberately NOT derived from ctx: when
+// the operator stops the listener we want capture to stop immediately but the
+// transcription already in flight to finish, so the last sentence of the talk
+// still reaches the audience. They are cancelled below, once the queue has
+// drained.
+//
+//nolint:contextcheck // see above: shutdown ordering is the whole point
 func (e *Engine) Run(ctx context.Context) error {
 	defer func() {
 		if e.jsonl != nil {

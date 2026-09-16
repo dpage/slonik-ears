@@ -23,3 +23,6 @@
 .idea/
 .vscode/
 *.swp
+
+# Browser smoke test output
+/web/e2e/output/

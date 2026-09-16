@@ -16,12 +16,15 @@ LDFLAGS    := -X github.com/dpage/slonik-ears/internal/version.Version=$(VERSION
 
 # Which model `make model` fetches. tiny.en (78 MB) through medium.en (1.5 GB);
 # small.en is the usual compromise for live captioning on Apple silicon.
+# Kept in step with .github/workflows/ci.yml so local runs match CI.
+GOLANGCI_VERSION ?= v2.13.2
+
 MODEL      ?= small.en
 MODEL_DIR  ?= $(HOME)/.cache/whisper
 MODEL_FILE := $(MODEL_DIR)/ggml-$(MODEL).bin
 MODEL_URL  := https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$(MODEL).bin
 
-.PHONY: all build web server listener dist test race lint fmt vet tidy clean demo run-server run-listener model whisper-server help
+.PHONY: all build web server listener dist test race lint golangci vuln smoke fmt vet tidy clean demo run-server run-listener model whisper-server help
 
 all: build
 
@@ -59,11 +62,39 @@ test:
 race:
 	$(GO) test -race ./...
 
-## lint: vet the Go code, check formatting, and type check the web app
-lint: vet
+## lint: everything CI checks — formatting, vet, golangci-lint, web types
+lint: vet golangci
 	@unformatted=$$(gofmt -l cmd internal web); \
 	if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
 	cd web && $(NPM) run typecheck
+
+## golangci: run golangci-lint, fetching it if it is not installed
+golangci:
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./...; \
+	else \
+		echo "golangci-lint not found; running it via go run (slow the first time)"; \
+		$(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION) run ./...; \
+	fi
+
+## vuln: check dependencies and the toolchain for known vulnerabilities
+vuln:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	cd web && $(NPM) audit --omit=dev --audit-level=high
+
+## smoke: drive the attendee views in a real browser against a running demo
+smoke: server
+	@EARS_PUBLISH_TOKEN=smoke-token ./$(BIN)/ears-server --addr 127.0.0.1:8099 & \
+	SERVER=$$!; \
+	sleep 1; \
+	$(GO) run ./cmd/ears-listener --room smoke --title "Smoke Room" --track CI \
+		--server http://127.0.0.1:8099 --token smoke-token \
+		--mock --file testdata/sample.wav --loop & \
+	LISTENER=$$!; \
+	sleep 6; \
+	cd web && $(NPM) exec -- playwright install chromium >/dev/null 2>&1 || true; \
+	cd $(CURDIR) && node web/e2e/smoke.mjs http://127.0.0.1:8099 smoke; \
+	RC=$$?; kill $$SERVER $$LISTENER 2>/dev/null; exit $$RC
 
 vet:
 	$(GO) vet ./...

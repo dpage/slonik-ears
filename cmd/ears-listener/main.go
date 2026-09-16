@@ -69,7 +69,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 	log.Info("audio source ready", "source", src.Name())
 
 	// ---- transcription backend
@@ -77,7 +77,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer transcriber.Close()
+	defer func() { _ = transcriber.Close() }()
 
 	// ---- publisher
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

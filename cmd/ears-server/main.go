@@ -69,11 +69,11 @@ func run() error {
 
 	var st store.Store = store.Null{}
 	if cfg.Server.DataDir != "" {
-		fs, err := store.NewFile(cfg.Server.DataDir)
+		fs, err := store.NewFile(cfg.Server.DataDir, log)
 		if err != nil {
 			return err
 		}
-		defer fs.Close()
+		defer func() { _ = fs.Close() }()
 		st = fs
 		log.Info("persisting transcripts", "dir", cfg.Server.DataDir)
 	} else {
@@ -92,7 +92,8 @@ func run() error {
 		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 	}
 
-	ln, err := net.Listen("tcp", cfg.Server.Addr)
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "tcp", cfg.Server.Addr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.Server.Addr, err)
 	}

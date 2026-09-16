@@ -1,7 +1,11 @@
 package store
 
 import (
+	"io"
+	"log/slog"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dpage/slonik-ears/internal/protocol"
@@ -9,7 +13,7 @@ import (
 
 func TestFileStoreRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	s, err := NewFile(dir)
+	s, err := NewFile(dir, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +34,7 @@ func TestFileStoreRoundTrip(t *testing.T) {
 	}
 
 	// A fresh store over the same directory sees everything.
-	reopened, err := NewFile(dir)
+	reopened, err := NewFile(dir, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +54,7 @@ func TestFileStoreRoundTrip(t *testing.T) {
 
 func TestFileStoreRejectsSillyRoomIDs(t *testing.T) {
 	dir := t.TempDir()
-	s, err := NewFile(dir)
+	s, err := NewFile(dir, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,5 +67,39 @@ func TestFileStoreRejectsSillyRoomIDs(t *testing.T) {
 	matches, _ := filepath.Glob(filepath.Join(dir, "*"))
 	if len(matches) != 0 {
 		t.Fatalf("no files should have been created, found %v", matches)
+	}
+}
+
+func testLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+}
+
+func TestFileStoreReportsWriteFailures(t *testing.T) {
+	dir := t.TempDir()
+
+	var logged strings.Builder
+	log := slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelError}))
+	s, err := NewFile(dir, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	// Make the room's file impossible to create by putting a directory in its
+	// place: the transcript must keep flowing, but somebody has to be told.
+	if err := os.Mkdir(filepath.Join(dir, "doomed.jsonl"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	s.Append("doomed", protocol.Segment{Seq: 1, Text: "into the void"})
+
+	if !strings.Contains(logged.String(), "transcript storage is failing") {
+		t.Fatalf("a storage failure must be reported, got: %q", logged.String())
+	}
+
+	// A second failure must not repeat the complaint.
+	before := logged.Len()
+	s.Append("doomed", protocol.Segment{Seq: 2, Text: "still nowhere"})
+	if logged.Len() != before {
+		t.Error("the failure should be reported once, not on every segment")
 	}
 }

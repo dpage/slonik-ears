@@ -1,5 +1,8 @@
 # Slonik Ears
 
+[![CI](https://github.com/dpage/slonik-ears/actions/workflows/ci.yml/badge.svg)](https://github.com/dpage/slonik-ears/actions/workflows/ci.yml)
+[![Container image](https://github.com/dpage/slonik-ears/actions/workflows/docker.yml/badge.svg)](https://github.com/dpage/slonik-ears/actions/workflows/docker.yml)
+
 Live transcription for events. A listener sits in each room, hears the talk,
 has it transcribed by a Whisper model, and streams the text to a server that
 fans it out to anybody watching — on their own phone, or on a screen beside
@@ -248,13 +251,40 @@ A few decisions worth knowing about:
 ```bash
 make test      # Go tests
 make race      # the same, under the race detector
-make lint      # vet, gofmt, and the web app's type check
+make lint      # gofmt, go vet, golangci-lint, and the web app's type check
+make vuln      # govulncheck and npm audit
+make smoke     # drive the attendee views in a real browser
 cd web && npm run dev    # the web app with hot reload, proxying to :8080
 ```
+
+`make lint`, `make vuln` and `make smoke` run what CI runs, so a green local
+run means a green pull request.
 
 The server can be built without cgo; the listener needs it for audio capture
 (`CGO_ENABLED=1`), which is handled by `make listener`. A cgo-free build of
 the listener still works with `--file` for replaying recordings.
+
+### What CI does
+
+| Workflow | When | What |
+| --- | --- | --- |
+| `ci.yml` | every push and pull request | gofmt, vet, golangci-lint; tests under the race detector on Linux and macOS; `govulncheck` and `npm audit`; the web build; and an end-to-end run that publishes a transcript through a real server and then drives the attendee views in a real browser |
+| `docker.yml` | main, tags, and changes to the Dockerfile | builds the image, runs it, checks it serves the app and is not running as root, then publishes a multi-architecture image to GHCR |
+| `release.yml` | a `v*` tag | cross-compiles the server for Linux, macOS and Windows, builds the listener natively on each platform that needs cgo, and attaches tarballs and `SHA256SUMS` to a GitHub release |
+
+Dependabot groups its updates weekly, so a quiet week produces one pull
+request rather than nine.
+
+### Cutting a release
+
+```bash
+git tag -a v0.1.0 -m "First release"
+git push origin v0.1.0
+```
+
+`release.yml` does the rest. Run it from the Actions tab first if you want to
+check the packaging without publishing anything — a manual run builds
+everything and stops short of creating the release.
 
 ## Licence
 

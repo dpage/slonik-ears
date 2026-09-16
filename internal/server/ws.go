@@ -110,7 +110,7 @@ func (s *Server) handleLobby(w http.ResponseWriter, r *http.Request) {
 
 // pumpViewer writes hub messages to a browser until either side gives up.
 func (s *Server) pumpViewer(conn *websocket.Conn, sub *hub.Subscriber) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	done := make(chan struct{})
 	go func() {
@@ -182,7 +182,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	conn.SetReadLimit(maxPublishMessage)
 
 	ip := s.clientIP(r)

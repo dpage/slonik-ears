@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -31,18 +32,27 @@ type Store interface {
 // Null is a Store that throws everything away. Used when --data-dir is unset.
 type Null struct{}
 
-func (Null) Append(string, protocol.Segment)         {}
+// Append discards the segment.
+func (Null) Append(string, protocol.Segment) {}
+
+// Load returns no history.
 func (Null) Load(string) ([]protocol.Segment, error) { return nil, nil }
-func (Null) Rooms() ([]string, error)                { return nil, nil }
-func (Null) Close() error                            { return nil }
+
+// Rooms returns no rooms.
+func (Null) Rooms() ([]string, error) { return nil, nil }
+
+// Close does nothing.
+func (Null) Close() error { return nil }
 
 // File writes one JSONL file per room under a directory.
 type File struct {
 	dir string
+	log *slog.Logger
 
 	mu      sync.Mutex
 	writers map[string]*roomWriter
 	closed  bool
+	failed  bool // a write error has already been reported
 	stop    chan struct{}
 	wg      sync.WaitGroup
 }
@@ -52,13 +62,18 @@ type roomWriter struct {
 	bw *bufio.Writer
 }
 
-// NewFile opens (creating if needed) a transcript directory.
-func NewFile(dir string) (*File, error) {
+// NewFile opens (creating if needed) a transcript directory. A nil logger
+// falls back to the default one.
+func NewFile(dir string, log *slog.Logger) (*File, error) {
+	if log == nil {
+		log = slog.Default()
+	}
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 	s := &File{
 		dir:     dir,
+		log:     log,
 		writers: make(map[string]*roomWriter),
 		stop:    make(chan struct{}),
 	}
@@ -86,9 +101,9 @@ func (s *File) path(roomID string) string {
 	return filepath.Join(s.dir, roomID+".jsonl")
 }
 
-// Append writes a segment. Errors are logged by the caller's logger via the
-// returned error channel; here a failure must never take down a live talk, so
-// it is reported once and then ignored.
+// Append writes a segment. A failure must never take down a live talk, so it
+// is logged once — a full disk should be visible to whoever is running the
+// event, not silently swallowed — and then tolerated.
 func (s *File) Append(roomID string, seg protocol.Segment) {
 	if !protocol.ValidRoomID(roomID) {
 		return
@@ -107,13 +122,26 @@ func (s *File) Append(roomID string, seg protocol.Segment) {
 	if !ok {
 		f, err := os.OpenFile(s.path(roomID), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o640)
 		if err != nil {
+			s.reportLocked("open transcript file", roomID, err)
 			return
 		}
 		w = &roomWriter{f: f, bw: bufio.NewWriter(f)}
 		s.writers[roomID] = w
 	}
-	w.bw.Write(line)
-	w.bw.WriteByte('\n')
+	if _, err := w.bw.Write(append(line, '\n')); err != nil {
+		s.reportLocked("write transcript", roomID, err)
+	}
+}
+
+// reportLocked logs the first storage failure and stays quiet about the rest,
+// so a failing disk does not also flood the log. The caller holds s.mu.
+func (s *File) reportLocked(what, roomID string, err error) {
+	if s.failed {
+		return
+	}
+	s.failed = true
+	s.log.Error("transcript storage is failing; the live transcript continues but is not being saved",
+		"operation", what, "room", roomID, "error", err)
 }
 
 // Load reads back everything previously written for a room.
@@ -123,7 +151,9 @@ func (s *File) Load(roomID string) ([]protocol.Segment, error) {
 	}
 	s.mu.Lock()
 	if w, ok := s.writers[roomID]; ok {
-		w.bw.Flush()
+		if err := w.bw.Flush(); err != nil {
+			s.reportLocked("flush transcript", roomID, err)
+		}
 	}
 	s.mu.Unlock()
 
@@ -134,7 +164,7 @@ func (s *File) Load(roomID string) ([]protocol.Segment, error) {
 		}
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var out []protocol.Segment
 	sc := bufio.NewScanner(f)
@@ -178,8 +208,10 @@ func (s *File) Rooms() ([]string, error) {
 func (s *File) flush() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, w := range s.writers {
-		w.bw.Flush()
+	for id, w := range s.writers {
+		if err := w.bw.Flush(); err != nil {
+			s.reportLocked("flush transcript", id, err)
+		}
 	}
 }
 

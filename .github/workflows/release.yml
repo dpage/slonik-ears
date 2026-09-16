@@ -1,0 +1,213 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Runs on demand too, so the packaging can be exercised without cutting a
+  # release; only a tag actually publishes one.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  web:
+    name: Build the web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: web/dist
+
+  server:
+    name: Server (${{ matrix.goos }}/${{ matrix.goarch }})
+    needs: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # The server has no cgo, so every one of these cross-compiles from a
+        # single Linux runner.
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64, ext: .exe }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Fetch the built web app
+        uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          case "$GITHUB_REF_TYPE" in tag) ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          mkdir -p out
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/dpage/slonik-ears/internal/version.Version=${version} -X github.com/dpage/slonik-ears/internal/version.Commit=${GITHUB_SHA::7}" \
+            -o "out/ears-server${{ matrix.ext }}" ./cmd/ears-server
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          case "$GITHUB_REF_TYPE" in tag) ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          name="slonik-ears-server-${version}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p "dist/${name}"
+          cp "out/ears-server${{ matrix.ext }}" "dist/${name}/"
+          cp README.md LICENSE "dist/${name}/"
+          cp configs/server.example.yaml "dist/${name}/"
+          cd dist
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip -qr "${name}.zip" "${name}"
+          else
+            tar -czf "${name}.tar.gz" "${name}"
+          fi
+          rm -rf "${name}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+
+  listener:
+    name: Listener (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # The listener needs cgo for audio capture, so each target is built on
+        # its own native runner rather than cross-compiled.
+        include:
+          - { os: macos-latest, label: darwin-arm64 }
+          - { os: macos-15-intel, label: darwin-amd64 }
+          - { os: ubuntu-latest, label: linux-amd64 }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          case "$GITHUB_REF_TYPE" in tag) ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          mkdir -p out
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/dpage/slonik-ears/internal/version.Version=${version} -X github.com/dpage/slonik-ears/internal/version.Commit=${GITHUB_SHA::7}" \
+            -o out/ears-listener ./cmd/ears-listener
+          ./out/ears-listener --version
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          case "$GITHUB_REF_TYPE" in tag) ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          name="slonik-ears-listener-${version}-${{ matrix.label }}"
+          mkdir -p "dist/${name}"
+          cp out/ears-listener "dist/${name}/"
+          cp README.md LICENSE docs/OPERATING.md "dist/${name}/"
+          cp configs/listener.example.yaml "dist/${name}/"
+          tar -czf "dist/${name}.tar.gz" -C dist "${name}"
+          rm -rf "dist/${name}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-listener-${{ matrix.label }}
+          path: dist/*
+
+  publish:
+    name: Publish the release
+    needs: [server, listener]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only a tag publishes. A manual run stops after building the packages,
+    # which are kept as workflow artifacts for inspection.
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Collect every package
+        uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          ls -la
+          sha256sum ./*.tar.gz ./*.zip | tee SHA256SUMS
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          ### Which download do I want?
+
+          * **`server`** runs the relay and serves the attendee web app. It has
+            no dependencies at all: copy the binary to a host and run it. The
+            web app is embedded inside it.
+          * **`listener`** runs in a room, captures the audio and publishes the
+            transcript. It needs a Whisper backend alongside it — see the
+            README for `brew install whisper-cpp`.
+
+          Verify a download against `SHA256SUMS` before running it.
+          NOTES
+
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "Slonik Ears ${GITHUB_REF_NAME}" \
+            --notes-file notes.md \
+            --generate-notes \
+            dist/*

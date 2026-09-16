@@ -6,8 +6,9 @@
 // are Unix milliseconds UTC.
 package protocol
 
-// Wire version. Bumped when an incompatible change is made so that an old
-// listener talking to a new server fails loudly instead of subtly.
+// Version is the wire protocol version. It is bumped when an incompatible
+// change is made, so that an old listener talking to a new server fails
+// loudly instead of subtly.
 const Version = 1
 
 // Message types sent by a listener to the server.

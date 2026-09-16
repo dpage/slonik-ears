@@ -4,8 +4,10 @@ package listener
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -155,7 +157,10 @@ func (c *Client) Run(ctx context.Context) error {
 		}
 		err := c.session(ctx)
 		if ctx.Err() != nil {
-			return nil
+			// A cancelled context ends the session with an error that is
+			// merely the shutdown being observed from the inside; it is not
+			// worth reporting to the caller.
+			return nil //nolint:nilerr // deliberate: shutdown is not a failure
 		}
 		if err != nil {
 			c.log.Warn("publisher disconnected", "error", err, "retry_in", backoff.Round(time.Second))
@@ -185,15 +190,25 @@ func (c *Client) session(ctx context.Context) error {
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	conn, resp, err := dialer.DialContext(dialCtx, c.url, header)
+	// On a successful upgrade the connection is hijacked and the response
+	// body is not a readable body at all, so there is nothing to close; the
+	// failure path below does close it.
+	conn, resp, err := dialer.DialContext(dialCtx, c.url, header) //nolint:bodyclose // see above
 	cancel()
 	if err != nil {
 		if resp != nil {
+			// The server explains itself in the body — "a valid publish token
+			// is required" is a great deal more use than a bare 401 status.
+			// It must also be closed, or every retry leaks a connection.
+			detail := readServerError(resp)
+			if detail != "" {
+				return fmt.Errorf("connect: %s: %s", resp.Status, detail)
+			}
 			return fmt.Errorf("connect: %s (%w)", resp.Status, err)
 		}
 		return fmt.Errorf("connect: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	meta := c.cfg.Meta
 	hello := protocol.Message{Type: protocol.TypeHello, Version: protocol.Version, Room: &meta}
@@ -308,6 +323,23 @@ func (c *Client) drain(conn *websocket.Conn) error {
 			return fmt.Errorf("write: %w", err)
 		}
 	}
+}
+
+// readServerError pulls a short, human-readable reason out of a refused
+// handshake and closes the body.
+func readServerError(resp *http.Response) string {
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if err != nil || len(body) == 0 {
+		return ""
+	}
+	var payload struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &payload); err == nil && payload.Error != "" {
+		return payload.Error
+	}
+	return strings.TrimSpace(string(body))
 }
 
 func (c *Client) setConnected(v bool) {
