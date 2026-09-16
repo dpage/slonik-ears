@@ -240,6 +240,6 @@ the listener still works with `--file` for replaying recordings.
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+The [PostgreSQL Licence](LICENSE) (SPDX: `PostgreSQL`), same as Postgres itself.
 
 [whispercpp]: https://github.com/ggml-org/whisper.cpp
