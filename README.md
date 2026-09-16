@@ -26,6 +26,18 @@ whole thing is two Go binaries and a static web app.
 
 Only text crosses the network. Audio never leaves the room.
 
+### Platforms
+
+| | Runs on | Notes |
+| --- | --- | --- |
+| `ears-server` | Linux, macOS, Windows; amd64 and arm64 | pure Go, no cgo, no dependencies. Cross-compile it for an EC2 box with `make dist`. |
+| `ears-listener` | macOS, Linux, Windows | needs cgo for audio capture: CoreAudio on macOS, ALSA/PulseAudio/JACK on Linux, WASAPI on Windows |
+
+The listener is written with a Mac in each room in mind — that is where the
+microphone permissions, the virtual audio devices and the Metal-accelerated
+models are least trouble — but nothing about it is macOS-only. The server is
+happiest on a small Linux instance well away from the venue's network.
+
 ## Try it in two minutes
 
 No model, no microphone, no patience required:
@@ -118,11 +130,17 @@ Put a reverse proxy in front of it for TLS (`EARS_TRUST_PROXY=true`), or point
 `tls_cert_file`/`tls_key_file` at a certificate and let the server do it.
 There is a `Dockerfile` and a `docker-compose.yml` in `deploy/`.
 
-Bandwidth is negligible: a few hundred bytes per second per viewer, compressed,
-because only text is sent. The relay itself is idle most of the time — the
-cheapest instance any provider sells is ample, and the cost is a few pounds a
-month rather than anything worth budgeting for. (Do check current prices; they
-move.)
+Bandwidth is genuinely negligible, because only text crosses the network.
+Measured against a live room with previews enabled, one viewer costs about
+**160 bytes per second, or 0.6 MB per viewer-hour** over a compressed
+WebSocket. A 300-person room running all day is therefore under 2 GB — inside
+AWS's 100 GB per month free egress allowance, never mind the per-GB rate after
+it.
+
+The relay is idle between utterances and holds only text in memory, so the
+smallest instance any provider sells is ample: a `t4g.nano` or equivalent, at
+a few pounds a month. Do check current prices, and size for TLS handshakes and
+concurrent sockets rather than for CPU.
 
 ## macOS notes
 

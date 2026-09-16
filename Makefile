@@ -21,7 +21,7 @@ MODEL_DIR  ?= $(HOME)/.cache/whisper
 MODEL_FILE := $(MODEL_DIR)/ggml-$(MODEL).bin
 MODEL_URL  := https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$(MODEL).bin
 
-.PHONY: all build web server listener test race lint fmt vet tidy clean demo run-server run-listener model whisper-server help
+.PHONY: all build web server listener dist test race lint fmt vet tidy clean demo run-server run-listener model whisper-server help
 
 all: build
 
@@ -39,6 +39,17 @@ server:
 ## listener: build the room listener (needs cgo for audio capture)
 listener:
 	CGO_ENABLED=1 $(GO) build -ldflags "$(LDFLAGS)" -o $(BIN)/ears-listener ./cmd/ears-listener
+
+## dist: cross-compile the server for Linux hosts (amd64 and arm64)
+dist: web
+	@mkdir -p $(BIN)/dist
+	@for target in linux/amd64 linux/arm64; do \
+		os=$${target%/*}; arch=$${target#*/}; \
+		echo "  building $$os/$$arch"; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -ldflags "-s -w $(LDFLAGS)" \
+			-o $(BIN)/dist/ears-server-$$os-$$arch ./cmd/ears-server || exit 1; \
+	done
+	@echo "Built into $(BIN)/dist — copy one to the host and run it; the web app is inside."
 
 ## test: run the Go tests
 test:
