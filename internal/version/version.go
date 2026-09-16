@@ -1,7 +1,10 @@
 // Package version carries build metadata stamped in by the linker.
 package version
 
-import "runtime/debug"
+import (
+	"runtime/debug"
+	"strings"
+)
 
 // Version is set with -ldflags "-X .../internal/version.Version=v1.2.3".
 var Version = ""
@@ -24,7 +27,9 @@ func String() string {
 			}
 		}
 	}
-	if c == "" {
+	// With no tags yet, `git describe --always` yields the same short SHA as
+	// the commit, and "016af4f (016af4f)" helps nobody.
+	if c == "" || strings.HasPrefix(v, c) {
 		return v
 	}
 	return v + " (" + c + ")"
