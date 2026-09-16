@@ -1,0 +1,95 @@
+# Running an event
+
+Notes from thinking about what actually goes wrong on the day. Adapt freely.
+
+## A week before
+
+* Decide where the server runs. If the venue's Wi-Fi isolates clients — assume
+  it does until proven otherwise — it needs to be somewhere public, and DNS
+  and a certificate need to exist before the morning of the event.
+* Pick the room ids. They appear in URLs (`/r/main-hall`), so keep them short
+  and memorable. Declare them in the server config so the lobby is populated
+  before anything starts.
+* Generate the publish token, or one per room:
+
+  ```bash
+  openssl rand -hex 24
+  ```
+
+* Decide about the audio feed. A lapel mic into a laptop's built-in
+  microphone across a room is the worst case and will read like it. A feed
+  from the desk into a USB interface is the best.
+
+## The day before
+
+* On each room's Mac: install the binaries, install `whisper-cpp`, download the
+  model, and **run it once**. The microphone permission prompt is the classic
+  way to lose the first ten minutes of a keynote.
+* Test with `--dry-run`, standing where the speaker will stand, with the room
+  empty and again with somebody talking at the back. Adjust `--device` and the
+  microphone gain rather than hoping.
+* Check the model keeps up. If the listener's log shows `took` creeping past
+  the length of the audio being transcribed, move down a model size or turn
+  off previews with `--no-partials`.
+* Decide the accessibility notice wording with the organisers and put it in
+  the server config; it appears under every transcript.
+
+## On the day
+
+Per room, in order:
+
+```bash
+# 1. the model server
+whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081 --threads 8
+
+# 2. keep the Mac awake
+caffeinate -dimsu &
+
+# 3. the listener
+ears-listener --config /usr/local/etc/slonik-ears/listener.yaml \
+              --speaker "Speaker Name" \
+              --transcript ~/transcripts/main-hall.jsonl
+```
+
+Update `--speaker` between talks — either restart the listener with a new
+value, or set it through the admin API without interrupting anything:
+
+```bash
+curl -X PUT https://ears.example.org/api/admin/rooms/main-hall \
+     -H "Authorization: Bearer $EARS_ADMIN_TOKEN" \
+     -H 'Content-Type: application/json' \
+     -d '{"title":"Main Hall","speaker":"Someone Else","track":"Track A"}'
+```
+
+Put the stage display on `/r/main-hall/stage`. Its QR code sends the audience
+to the same transcript on their own phones, which saves reading a URL aloud.
+
+## While it is running
+
+* The lobby shows every room and whether it is live. A room that has gone
+  quiet shows "Idle" within moments of its listener disconnecting.
+* The room page shows what the listener last reported, including any backend
+  error, so "why has it stopped?" is answerable from a phone at the back.
+* `GET /healthz` is there for whatever monitoring you already have.
+
+## Afterwards
+
+Transcripts are in the server's data directory as one JSONL file per room, and
+are downloadable as text, SRT, VTT or JSON:
+
+```bash
+curl -O https://ears.example.org/api/rooms/main-hall/transcript?format=txt
+```
+
+Speakers generally appreciate being offered theirs, and equally appreciate
+being told that it is a machine transcript with the errors that implies.
+
+## Things that will go wrong, and what to do
+
+| Symptom | Likely cause |
+| --- | --- |
+| Transcript is empty but the room shows live | microphone permission, or the wrong `--device`; check the level in the listener's status |
+| Text arrives in long delayed bursts | the model is not keeping up: smaller model, or `--no-partials` |
+| Occasional "Thank you." or "[BLANK_AUDIO]" | Whisper hallucinating on silence; the cleaner catches the common cases, and a better audio feed catches the rest |
+| Attendees cannot reach the server | client isolation on the venue network: this is what the hosted relay is for |
+| Room shows live but nothing appears after a restart | a second listener took over the room; the first is told and stops |

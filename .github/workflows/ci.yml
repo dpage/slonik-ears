@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l cmd internal web)
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Build both binaries
+        run: |
+          CGO_ENABLED=0 go build ./cmd/ears-server
+          CGO_ENABLED=1 go build ./cmd/ears-listener
+
+  web:
+    name: Web app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: web
+
+      - name: Type check and build
+        run: npm run build
+        working-directory: web
+
+  end-to-end:
+    name: End to end
+    runs-on: ubuntu-latest
+    needs: [go, web]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build the web app
+        run: npm ci --no-audit --no-fund && npm run build
+        working-directory: web
+
+      - name: Publish a transcript through a real server
+        run: |
+          set -euo pipefail
+          CGO_ENABLED=0 go build -o /tmp/ears-server ./cmd/ears-server
+          CGO_ENABLED=0 go build -o /tmp/ears-listener ./cmd/ears-listener
+
+          EARS_PUBLISH_TOKEN=ci-token /tmp/ears-server --addr 127.0.0.1:18080 --data-dir /tmp/ears-data &
+          for _ in $(seq 1 40); do
+            curl -sf http://127.0.0.1:18080/healthz >/dev/null && break
+            sleep 0.25
+          done
+
+          /tmp/ears-listener --room ci --title "CI" --server http://127.0.0.1:18080 \
+            --token ci-token --mock --file testdata/sample.wav --fast
+
+          transcript=$(curl -sf "http://127.0.0.1:18080/api/rooms/ci/transcript?format=txt")
+          echo "$transcript"
+          echo "$transcript" | grep -q "replication" || {
+            echo "the transcript did not reach the server"; exit 1
+          }
+
+          # The bundled web app must actually be embedded in the binary.
+          curl -sf http://127.0.0.1:18080/ | grep -q '<div id="root">' || {
+            echo "the web app was not embedded"; exit 1
+          }

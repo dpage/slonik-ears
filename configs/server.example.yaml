@@ -1,0 +1,68 @@
+# Slonik Ears server configuration.
+#
+# Everything here is optional: the server runs with no config at all, provided
+# EARS_PUBLISH_TOKEN is set. Environment variables override this file, so keep
+# secrets out of it and out of git.
+
+event:
+  name: "PGConf Europe 2026"
+  tagline: "Live transcripts for every track"
+  # Shown under the transcript. Worth keeping: machine transcription is very
+  # good and still occasionally very wrong.
+  notice: >-
+    Automatically generated live transcript. It will contain errors, especially
+    with names and technical terms. Please do not quote it verbatim.
+
+server:
+  addr: ":8080"
+  # The address attendees use. Only needed for QR codes and join links; when
+  # it is empty the server works it out from the request.
+  base_url: "https://ears.example.org"
+  # Transcripts are written here as one JSONL file per room. Leave empty to
+  # keep everything in memory and lose it on restart.
+  data_dir: "./data"
+  # Segments kept in memory per room, for late joiners and reconnects.
+  history: 2000
+  # Enable only when running behind a reverse proxy you control.
+  trust_proxy: false
+  # 0 means no limit. A few hundred viewers per room is untroubling; the
+  # bandwidth per viewer is a few hundred bytes a second.
+  max_viewers_per_room: 0
+  # For running TLS directly rather than behind a proxy.
+  # tls_cert_file: /etc/ssl/ears/fullchain.pem
+  # tls_key_file: /etc/ssl/ears/privkey.pem
+
+auth:
+  # Listeners must present this. Set it with EARS_PUBLISH_TOKEN instead of
+  # writing it here:  openssl rand -hex 24
+  publish_token: ""
+  # Leave empty for an open event, which is usually the point of the exercise.
+  # Set it (EARS_VIEWER_PASSCODE) for an internal or paid event.
+  viewer_passcode: ""
+  # Guards PUT/DELETE /api/admin/rooms/{id}.
+  admin_token: ""
+  # Extra origins allowed to open WebSockets. Same-origin always works, and
+  # native clients (the listener) send no Origin header. Add entries here only
+  # if you are embedding the transcript in another site.
+  allowed_origins: []
+  # Whether a listener may create a room that is not listed below. Turn this
+  # off for a locked-down event where the room list is decided in advance.
+  allow_auto_rooms: true
+
+# Rooms declared here appear in the lobby before their listener connects, and
+# can each carry their own publish token so every room operator gets a
+# different secret.
+rooms:
+  - id: main-hall
+    title: "Main Hall"
+    track: "Track A"
+    language: "en"
+  - id: seminar-1
+    title: "Seminar Room 1"
+    track: "Track B"
+    language: "en"
+    # publish_token: "a-different-secret-for-this-room"
+  - id: workshop
+    title: "Workshop Room"
+    track: "Workshops"
+    language: "en"

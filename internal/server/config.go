@@ -21,10 +21,10 @@ type Config struct {
 
 // EventConfig is the branding shown to attendees.
 type EventConfig struct {
-	Name    string `yaml:"name"`
-	Tagline string `yaml:"tagline"`
+	Name    string `yaml:"name" json:"name"`
+	Tagline string `yaml:"tagline" json:"tagline,omitempty"`
 	// Notice is shown under the transcript, e.g. an accessibility disclaimer.
-	Notice string `yaml:"notice"`
+	Notice string `yaml:"notice" json:"notice,omitempty"`
 }
 
 // ServerConfig covers the HTTP listener and storage.

@@ -259,3 +259,34 @@ func readAll(t *testing.T, resp *http.Response) string {
 	}
 	return sb.String()
 }
+
+func TestPublicConfigUsesJSONNames(t *testing.T) {
+	ts, _ := newTestServer(t, func(c *server.Config) {
+		c.Event.Name = "PGConf"
+		c.Event.Tagline = "Elephants, mostly"
+	})
+	resp, err := http.Get(ts.URL + "/api/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var payload struct {
+		Event struct {
+			Name    string `json:"name"`
+			Tagline string `json:"tagline"`
+		} `json:"event"`
+		RequiresKey bool `json:"requiresKey"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	// The web app reads these names; Go's defaults would have exported
+	// "Name" and broken it silently.
+	if payload.Event.Name != "PGConf" || payload.Event.Tagline != "Elephants, mostly" {
+		t.Fatalf("event config did not round trip: %+v", payload.Event)
+	}
+	if payload.RequiresKey {
+		t.Fatal("requiresKey should be false when no passcode is configured")
+	}
+}

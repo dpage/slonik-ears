@@ -14,6 +14,7 @@ ears-listener
 /data/
 *.jsonl
 *.wav
+!/testdata/sample.wav
 
 # Editors and operating systems
 .DS_Store

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs a room listener automatically on a Mac.
+
+  Install with:
+    cp deploy/com.pgedge.slonik-ears.listener.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.pgedge.slonik-ears.listener.plist
+
+  It must be a LaunchAgent (per-user), not a LaunchDaemon: microphone access
+  is granted to a logged-in user session, and a daemon has no way to be asked.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pgedge.slonik-ears.listener</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/ears-listener</string>
+    <string>--config</string>
+    <string>/usr/local/etc/slonik-ears/listener.yaml</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>EARS_PUBLISH_TOKEN</key>
+    <string>replace-me</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/ears-listener.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/ears-listener.log</string>
+</dict>
+</plist>
