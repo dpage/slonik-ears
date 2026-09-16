@@ -1,0 +1,251 @@
+package listener
+
+import (
+	"flag"
+	"fmt"
+	"log/slog"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/dpage/slonik-ears/internal/audio"
+	"github.com/dpage/slonik-ears/internal/protocol"
+	"gopkg.in/yaml.v3"
+)
+
+// Config is everything a listener needs to know. It can come from flags, a
+// YAML file, or the environment; flags win, then the environment, then the
+// file, then the defaults.
+type Config struct {
+	// Where the transcript goes.
+	Server string `yaml:"server"`
+	Room   string `yaml:"room"`
+	Token  string `yaml:"token"`
+
+	// How the room is described to attendees.
+	Title    string `yaml:"title"`
+	Track    string `yaml:"track"`
+	Speaker  string `yaml:"speaker"`
+	Language string `yaml:"language"`
+
+	// Where the audio comes from.
+	Device string `yaml:"device"`
+	File   string `yaml:"file"`
+	Loop   bool   `yaml:"loop"`
+	Fast   bool   `yaml:"fast"`
+
+	// How it gets transcribed.
+	Whisper    string `yaml:"whisper_url"`
+	Model      string `yaml:"model"`
+	APIKey     string `yaml:"api_key"`
+	Translate  bool   `yaml:"translate"`
+	WhisperVAD bool   `yaml:"whisper_vad"`
+	Mock       bool   `yaml:"mock"`
+
+	// Segmentation.
+	SilenceMs      int  `yaml:"silence_ms"`
+	MinUtteranceMs int  `yaml:"min_utterance_ms"`
+	MaxUtteranceMs int  `yaml:"max_utterance_ms"`
+	PartialMs      int  `yaml:"partial_ms"`
+	NoPartials     bool `yaml:"no_partials"`
+	PreRollMs      int  `yaml:"pre_roll_ms"`
+
+	// Timeouts, in seconds on the wire because nobody enjoys YAML durations.
+	PartialTimeoutSec int `yaml:"partial_timeout_sec"`
+	FinalTimeoutSec   int `yaml:"final_timeout_sec"`
+
+	// Housekeeping.
+	Transcript string `yaml:"transcript_file"`
+	LogLevel   string `yaml:"log_level"`
+}
+
+// DefaultConfig returns the out-of-the-box configuration: a local server, a
+// local whisper.cpp, and English.
+func DefaultConfig() Config {
+	ch := audio.DefaultChunkerConfig()
+	return Config{
+		Server:            "http://localhost:8080",
+		Language:          "en",
+		Whisper:           "http://127.0.0.1:8081/inference",
+		SilenceMs:         ch.SilenceMs,
+		MinUtteranceMs:    ch.MinUtteranceMs,
+		MaxUtteranceMs:    ch.MaxUtteranceMs,
+		PartialMs:         ch.PartialIntervalMs,
+		PreRollMs:         ch.PreRollMs,
+		PartialTimeoutSec: 8,
+		FinalTimeoutSec:   60,
+		LogLevel:          "info",
+	}
+}
+
+// BindFlags registers command line flags against this config.
+func (c *Config) BindFlags(fs *flag.FlagSet) {
+	fs.StringVar(&c.Server, "server", c.Server, "ears-server base URL")
+	fs.StringVar(&c.Room, "room", c.Room, "room id to publish to (lower case letters, digits, - and _)")
+	fs.StringVar(&c.Token, "token", c.Token, "publish token (or set EARS_PUBLISH_TOKEN)")
+
+	fs.StringVar(&c.Title, "title", c.Title, "room title shown to attendees")
+	fs.StringVar(&c.Track, "track", c.Track, "track name, for grouping rooms in the lobby")
+	fs.StringVar(&c.Speaker, "speaker", c.Speaker, "speaker name shown to attendees")
+	fs.StringVar(&c.Language, "language", c.Language, `spoken language as an ISO-639-1 code, or "auto"`)
+
+	fs.StringVar(&c.Device, "device", c.Device, "capture device index, id, or part of its name (default: system default)")
+	fs.StringVar(&c.File, "file", c.File, "replay a WAV file instead of capturing audio (for testing)")
+	fs.BoolVar(&c.Loop, "loop", c.Loop, "loop the replayed file")
+	fs.BoolVar(&c.Fast, "fast", c.Fast, "replay the file as fast as possible rather than in real time")
+
+	fs.StringVar(&c.Whisper, "whisper", c.Whisper, "transcription endpoint (whisper.cpp server, or an OpenAI-compatible URL)")
+	fs.StringVar(&c.Model, "model", c.Model, "model name, for OpenAI-compatible endpoints only")
+	fs.StringVar(&c.APIKey, "api-key", c.APIKey, "bearer token for the transcription endpoint (or set EARS_API_KEY)")
+	fs.BoolVar(&c.Translate, "translate", c.Translate, "translate to English rather than transcribing verbatim")
+	fs.BoolVar(&c.WhisperVAD, "whisper-vad", c.WhisperVAD, "ask the whisper server to apply its own VAD (needs a VAD model loaded there)")
+	fs.BoolVar(&c.Mock, "mock", c.Mock, "use the mock transcriber: invents text, needs no model")
+
+	fs.IntVar(&c.SilenceMs, "silence-ms", c.SilenceMs, "silence that ends an utterance")
+	fs.IntVar(&c.MinUtteranceMs, "min-utterance-ms", c.MinUtteranceMs, "ignore utterances shorter than this")
+	fs.IntVar(&c.MaxUtteranceMs, "max-utterance-ms", c.MaxUtteranceMs, "commit an utterance at least this often")
+	fs.IntVar(&c.PartialMs, "partial-ms", c.PartialMs, "how often to refresh the live preview")
+	fs.BoolVar(&c.NoPartials, "no-partials", c.NoPartials, "disable live previews, halving the load on the model")
+	fs.IntVar(&c.PreRollMs, "pre-roll-ms", c.PreRollMs, "audio kept from before speech is detected")
+
+	fs.IntVar(&c.PartialTimeoutSec, "partial-timeout", c.PartialTimeoutSec, "seconds to wait for a preview transcription")
+	fs.IntVar(&c.FinalTimeoutSec, "final-timeout", c.FinalTimeoutSec, "seconds to wait for a committed transcription")
+
+	fs.StringVar(&c.Transcript, "transcript", c.Transcript, "append committed segments to this JSONL file as a local backup")
+	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "log level: debug, info, warn or error")
+}
+
+// LoadFile applies a YAML config, leaving any value that was given explicitly
+// on the command line alone.
+func (c *Config) LoadFile(path string, fs *flag.FlagSet) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read listener config: %w", err)
+	}
+	fromFile := DefaultConfig()
+	dec := yaml.NewDecoder(strings.NewReader(string(data)))
+	dec.KnownFields(true)
+	if err := dec.Decode(&fromFile); err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
+	}
+
+	explicit := map[string]bool{}
+	if fs != nil {
+		fs.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+	}
+
+	// Rebuild from the file, then put back anything the command line set.
+	cmdline := *c
+	*c = fromFile
+	overlay := func(name string, apply func()) {
+		if explicit[name] {
+			apply()
+		}
+	}
+	overlay("server", func() { c.Server = cmdline.Server })
+	overlay("room", func() { c.Room = cmdline.Room })
+	overlay("token", func() { c.Token = cmdline.Token })
+	overlay("title", func() { c.Title = cmdline.Title })
+	overlay("track", func() { c.Track = cmdline.Track })
+	overlay("speaker", func() { c.Speaker = cmdline.Speaker })
+	overlay("language", func() { c.Language = cmdline.Language })
+	overlay("device", func() { c.Device = cmdline.Device })
+	overlay("file", func() { c.File = cmdline.File })
+	overlay("loop", func() { c.Loop = cmdline.Loop })
+	overlay("fast", func() { c.Fast = cmdline.Fast })
+	overlay("whisper", func() { c.Whisper = cmdline.Whisper })
+	overlay("model", func() { c.Model = cmdline.Model })
+	overlay("api-key", func() { c.APIKey = cmdline.APIKey })
+	overlay("translate", func() { c.Translate = cmdline.Translate })
+	overlay("whisper-vad", func() { c.WhisperVAD = cmdline.WhisperVAD })
+	overlay("mock", func() { c.Mock = cmdline.Mock })
+	overlay("silence-ms", func() { c.SilenceMs = cmdline.SilenceMs })
+	overlay("min-utterance-ms", func() { c.MinUtteranceMs = cmdline.MinUtteranceMs })
+	overlay("max-utterance-ms", func() { c.MaxUtteranceMs = cmdline.MaxUtteranceMs })
+	overlay("partial-ms", func() { c.PartialMs = cmdline.PartialMs })
+	overlay("no-partials", func() { c.NoPartials = cmdline.NoPartials })
+	overlay("pre-roll-ms", func() { c.PreRollMs = cmdline.PreRollMs })
+	overlay("partial-timeout", func() { c.PartialTimeoutSec = cmdline.PartialTimeoutSec })
+	overlay("final-timeout", func() { c.FinalTimeoutSec = cmdline.FinalTimeoutSec })
+	overlay("transcript", func() { c.Transcript = cmdline.Transcript })
+	overlay("log-level", func() { c.LogLevel = cmdline.LogLevel })
+	return nil
+}
+
+// ApplyEnv fills in anything still empty from the environment. Secrets belong
+// here rather than in a config file or a shell history.
+func (c *Config) ApplyEnv() {
+	if v := os.Getenv("EARS_SERVER"); v != "" && c.Server == DefaultConfig().Server {
+		c.Server = v
+	}
+	if v := os.Getenv("EARS_ROOM"); v != "" && c.Room == "" {
+		c.Room = v
+	}
+	if v := os.Getenv("EARS_PUBLISH_TOKEN"); v != "" && c.Token == "" {
+		c.Token = v
+	}
+	if v := os.Getenv("EARS_WHISPER_URL"); v != "" && c.Whisper == DefaultConfig().Whisper {
+		c.Whisper = v
+	}
+	if v := os.Getenv("EARS_API_KEY"); v != "" && c.APIKey == "" {
+		c.APIKey = v
+	}
+}
+
+// Validate checks the configuration makes sense before any audio is captured.
+func (c Config) Validate(dryRun bool) error {
+	if c.Room == "" {
+		return fmt.Errorf("--room is required (for example: --room main-hall)")
+	}
+	if !protocol.ValidRoomID(c.Room) {
+		suggestion := protocol.NormaliseRoomID(c.Room)
+		if suggestion == "" {
+			return fmt.Errorf("--room %q is not usable: use lower case letters, digits, - and _", c.Room)
+		}
+		return fmt.Errorf("--room %q is not valid: try --room %s", c.Room, suggestion)
+	}
+	if !dryRun {
+		if c.Server == "" {
+			return fmt.Errorf("--server is required")
+		}
+		if c.Token == "" {
+			return fmt.Errorf("a publish token is required: pass --token or set EARS_PUBLISH_TOKEN")
+		}
+	}
+	if !c.Mock && c.Whisper == "" {
+		return fmt.Errorf("--whisper is required unless --mock is used")
+	}
+	if c.File != "" && c.Device != "" {
+		return fmt.Errorf("--file and --device are mutually exclusive")
+	}
+	return nil
+}
+
+// EngineConfig converts to the engine's configuration.
+func (c Config) EngineConfig(log *slog.Logger) EngineConfig {
+	partial := c.PartialMs
+	if c.NoPartials {
+		partial = 0
+	}
+	return EngineConfig{
+		Chunker: audio.ChunkerConfig{
+			SilenceMs:         c.SilenceMs,
+			MinUtteranceMs:    c.MinUtteranceMs,
+			MaxUtteranceMs:    c.MaxUtteranceMs,
+			PartialIntervalMs: partial,
+			PreRollMs:         c.PreRollMs,
+			VAD:               audio.DefaultVADConfig(),
+		},
+		Language:       c.Language,
+		Translate:      c.Translate,
+		PartialTimeout: time.Duration(c.PartialTimeoutSec) * time.Second,
+		FinalTimeout:   time.Duration(c.FinalTimeoutSec) * time.Second,
+		TranscriptFile: c.Transcript,
+		Logger:         log,
+	}
+}
+
+// FinalTimeout is the ASR client's request timeout.
+func (c Config) FinalTimeoutDuration() time.Duration {
+	return time.Duration(c.FinalTimeoutSec) * time.Second
+}

@@ -1,0 +1,22 @@
+# Build output
+/bin/
+/dist/
+ears-server
+ears-listener
+
+# Front-end build output (rebuilt by `make web`; the placeholder is kept so
+# that `go build` works in a fresh checkout)
+/web/dist/*
+!/web/dist/.gitkeep
+/web/node_modules/
+
+# Runtime data
+/data/
+*.jsonl
+*.wav
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
