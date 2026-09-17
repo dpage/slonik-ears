@@ -69,6 +69,15 @@ func CleanTranscript(s string) string {
 		return ""
 	}
 
+	// Output with no letters or digits anywhere in it is not a transcript of
+	// anything. large-v3 answers a chunk of room tone with a lone full stop
+	// often enough to matter, and a line reading "." at the front of the hall
+	// is worse than no line at all. Checked directly rather than through
+	// normalise, which keeps hyphens on purpose and so would let "--" past.
+	if !hasWordCharacter(s) {
+		return ""
+	}
+
 	if junkOutputs[normalise(s)] {
 		return ""
 	}
@@ -115,6 +124,17 @@ func equalWords(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// hasWordCharacter reports whether there is anything in s that could be part
+// of a spoken word.
+func hasWordCharacter(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // normalise lowercases and drops punctuation for junk comparison.

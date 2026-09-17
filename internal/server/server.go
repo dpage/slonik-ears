@@ -108,7 +108,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/watch", s.handleWatch)
 	mux.HandleFunc("GET /api/lobby", s.handleLobby)
 	mux.HandleFunc("GET /api/publish", s.handlePublish)
+	mux.HandleFunc("POST /api/admin/session", s.handleAdminSession)
+	mux.HandleFunc("GET /api/admin/rooms", s.handleAdminRooms)
 	mux.HandleFunc("PUT /api/admin/rooms/{id}", s.handleAdminUpsertRoom)
+	mux.HandleFunc("POST /api/admin/rooms/{id}/reset", s.handleAdminResetRoom)
 	mux.HandleFunc("DELETE /api/admin/rooms/{id}", s.handleAdminDeleteRoom)
 
 	mux.Handle("/", s.webHandler())
@@ -151,6 +154,12 @@ func (s *Server) corsOrigin(r *http.Request) string {
 // ---------------------------------------------------------------- auth
 
 const viewerCookie = "ears_key"
+
+// adminCookie carries the admin token for the /admin page. A browser cannot
+// put an Authorization header on a plain navigation, and asking somebody to
+// paste a token between every talk is not a serious proposition, so the page
+// trades the token for a cookie exactly as attendees do with the passcode.
+const adminCookie = "ears_admin"
 
 // authoriseViewer reports whether the request may watch. When no passcode is
 // configured, everyone may.
@@ -200,13 +209,21 @@ func (s *Server) authorisePublisher(r *http.Request, roomID string) bool {
 	return false
 }
 
+// authoriseAdmin reports whether the request may change rooms. An unset admin
+// token means the admin API is off entirely rather than open to all: this is
+// the interface that can wipe a talk off the screen.
 func (s *Server) authoriseAdmin(r *http.Request) bool {
 	want := s.cfg.Auth.AdminToken
 	if want == "" {
 		return false
 	}
-	got := bearerToken(r)
-	return got != "" && secretEqual(got, want)
+	if got := bearerToken(r); got != "" && secretEqual(got, want) {
+		return true
+	}
+	if c, err := r.Cookie(adminCookie); err == nil && secretEqual(c.Value, want) {
+		return true
+	}
+	return false
 }
 
 func bearerToken(r *http.Request) string {
@@ -240,6 +257,12 @@ type publicConfig struct {
 	Authenticated bool        `json:"authenticated"`
 	BaseURL       string      `json:"baseUrl,omitempty"`
 	ProtocolVer   int         `json:"protocolVersion"`
+	// AdminEnabled says whether this server has an admin token set at all, so
+	// /admin can explain itself rather than rejecting a token that was never
+	// going to work. AdminAuthed saves the page having to provoke a 401 to
+	// find out whether it is still signed in.
+	AdminEnabled bool `json:"adminEnabled"`
+	AdminAuthed  bool `json:"adminAuthenticated"`
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -250,6 +273,8 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		Authenticated: s.authoriseViewer(r),
 		BaseURL:       s.cfg.Server.BaseURL,
 		ProtocolVer:   protocol.Version,
+		AdminEnabled:  s.cfg.Auth.AdminToken != "",
+		AdminAuthed:   s.authoriseAdmin(r),
 	})
 }
 
@@ -324,15 +349,95 @@ func (s *Server) handleAdminUpsertRoom(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"room": room.Info()})
 }
 
+// handleAdminRooms lists rooms for the admin page. It exists alongside
+// GET /api/rooms so the page has one request that answers both "what is
+// there" and "am I still signed in": the viewer list is behind the attendee
+// passcode, which is a different question and often not set at all.
+func (s *Server) handleAdminRooms(w http.ResponseWriter, r *http.Request) {
+	if !s.authoriseAdmin(r) {
+		writeError(w, http.StatusUnauthorized, "admin token required")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rooms": s.hub.Rooms()})
+}
+
+// handleAdminSession trades the admin token for a cookie, so the /admin page
+// is usable from a browser without pasting a bearer token into every request.
+func (s *Server) handleAdminSession(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if s.cfg.Auth.AdminToken == "" {
+		writeError(w, http.StatusForbidden, "no admin token is configured on this server")
+		return
+	}
+	if !secretEqual(body.Token, s.cfg.Auth.AdminToken) {
+		writeError(w, http.StatusUnauthorized, "that token is not right")
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     adminCookie,
+		Value:    body.Token,
+		Path:     "/",
+		HttpOnly: true,
+		// Strict rather than Lax: nothing should be able to reset a room on
+		// the strength of a link somebody followed from elsewhere.
+		SameSite: http.SameSiteStrictMode,
+		Secure:   r.TLS != nil,
+		MaxAge:   int((12 * time.Hour).Seconds()),
+	})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleAdminResetRoom empties a room for the next talk, setting the previous
+// transcript aside rather than destroying it.
+func (s *Server) handleAdminResetRoom(w http.ResponseWriter, r *http.Request) {
+	if !s.authoriseAdmin(r) {
+		writeError(w, http.StatusUnauthorized, "admin token required")
+		return
+	}
+	id := r.PathValue("id")
+	room, ok := s.hub.Get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such room")
+		return
+	}
+	// Archive first. If setting the old transcript aside fails there is no
+	// safe way to continue, because resetting the room would leave the next
+	// talk appending to the last one's file and the two would be merged back
+	// together at the next restart.
+	if err := s.store.Archive(id); err != nil {
+		s.log.Error("could not archive the transcript; the room has been left alone", "room", id, "error", err)
+		writeError(w, http.StatusInternalServerError, "could not archive the existing transcript")
+		return
+	}
+	room.Reset()
+	s.log.Info("room reset for the next talk", "room", id)
+	writeJSON(w, http.StatusOK, map[string]any{"room": room.Info()})
+}
+
 func (s *Server) handleAdminDeleteRoom(w http.ResponseWriter, r *http.Request) {
 	if !s.authoriseAdmin(r) {
 		writeError(w, http.StatusUnauthorized, "admin token required")
 		return
 	}
-	if !s.hub.Remove(r.PathValue("id")) {
+	id := r.PathValue("id")
+	if !s.hub.Remove(id) {
 		writeError(w, http.StatusNotFound, "no such room")
 		return
 	}
+	// The stored transcript has to go too, or the room reappears at the next
+	// restart with the talk still in it, which is exactly what deleting it was
+	// meant to prevent. Archived rather than deleted, so the transcript itself
+	// survives for whoever gave the talk.
+	if err := s.store.Archive(id); err != nil {
+		s.log.Error("room removed, but its transcript could not be archived", "room", id, "error", err)
+	}
+	s.log.Info("room removed", "room", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 

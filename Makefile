@@ -19,7 +19,7 @@ LDFLAGS    := -X github.com/dpage/slonik-ears/internal/version.Version=$(VERSION
 # Kept in step with .github/workflows/ci.yml so local runs match CI.
 GOLANGCI_VERSION ?= v2.13.2
 
-MODEL      ?= small.en
+MODEL      ?= large-v3
 MODEL_DIR  ?= $(HOME)/.cache/whisper
 MODEL_FILE := $(MODEL_DIR)/ggml-$(MODEL).bin
 MODEL_URL  := https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$(MODEL).bin

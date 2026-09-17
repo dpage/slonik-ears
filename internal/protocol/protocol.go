@@ -47,6 +47,14 @@ type Message struct {
 	// whole talk.
 	Cursor int64 `json:"cursor,omitempty"`
 
+	// Reset tells a viewer to throw away the transcript it is holding rather
+	// than merge this snapshot into it. It is set when a viewer arrives with a
+	// cursor ahead of the room's own, which means the room was reset between
+	// talks whilst that viewer was holding segments from the last one.
+	// Resuming from such a cursor would leave the previous speaker's words on
+	// screen for the whole of the next talk.
+	Reset bool `json:"reset,omitempty"`
+
 	Error      string `json:"error,omitempty"`
 	ServerTime int64  `json:"serverTime,omitempty"`
 }

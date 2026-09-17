@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { fetchConfig } from './api'
 import PasscodeGate from './components/PasscodeGate'
+import AdminPage from './pages/AdminPage'
 import Lobby from './pages/Lobby'
 import RoomPage from './pages/RoomPage'
 import StagePage from './pages/StagePage'
@@ -62,6 +63,9 @@ export default function App() {
         <Route path="/" element={<Lobby />} />
         <Route path="/r/:roomId" element={<RoomPage />} />
         <Route path="/r/:roomId/stage" element={<StagePage />} />
+        {/* Not linked from anywhere. It has its own token, and a link in the
+            lobby would only invite people to try the door. */}
+        <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ConfigContext.Provider>

@@ -408,6 +408,44 @@ func (r *Room) Restore(segs []protocol.Segment) {
 	}
 }
 
+// Reset empties a room for the next talk: the transcript goes, the sequence
+// numbering starts again from one, and any viewer still watching is brought
+// back to an empty screen.
+//
+// The publisher's epoch is deliberately left alone, so a listener that is
+// already connected carries straight on into the new talk without needing to
+// be restarted. That is the case this exists for: the room turns around
+// between speakers whilst the machine at the back of the room keeps running.
+func (r *Room) Reset() {
+	r.mu.Lock()
+	r.segments = nil
+	r.partial = nil
+	r.info.Cursor = 0
+	r.info.StartedAt = nowMs()
+	r.info.LastActivity = nowMs()
+	subs := make([]*Subscriber, 0, len(r.subs))
+	for s := range r.subs {
+		subs = append(subs, s)
+	}
+	info := r.info
+	r.mu.Unlock()
+
+	// Viewers are sent a fresh snapshot rather than being disconnected: a
+	// stage display should go blank and stay connected, not flicker through a
+	// reconnection in front of an audience.
+	for _, s := range subs {
+		s.send(protocol.Message{
+			Type:       protocol.TypeSnapshot,
+			Version:    protocol.Version,
+			Room:       &info,
+			Reset:      true,
+			Cursor:     0,
+			ServerTime: nowMs(),
+		})
+	}
+	r.hub.broadcastLobby()
+}
+
 // SetPartial publishes the in-flight hypothesis.
 func (r *Room) SetPartial(epoch int64, p protocol.Partial) error {
 	r.mu.Lock()
@@ -498,9 +536,16 @@ func (r *Room) Subscribe(since int64) *Subscriber {
 	segs, partial, cursor := r.History(since)
 	info := r.Info()
 	s.send(protocol.Message{
-		Type:       protocol.TypeSnapshot,
-		Version:    protocol.Version,
-		Room:       &info,
+		Type:    protocol.TypeSnapshot,
+		Version: protocol.Version,
+		Room:    &info,
+		// A viewer asking to resume from beyond where the room now is has
+		// lived through a reset and is still holding the last talk. Tell it to
+		// start over rather than merge. Deciding this from the cursor rather
+		// than by announcing the reset means it self-heals: a phone that was
+		// in somebody's pocket throughout gets the same treatment when it
+		// eventually reconnects.
+		Reset:      since > cursor,
 		Segments:   segs,
 		Partial:    partial,
 		Cursor:     cursor,

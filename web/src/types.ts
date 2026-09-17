@@ -60,6 +60,12 @@ export interface Message {
   partial?: Partial
   status?: Status
   cursor?: number
+  /**
+   * Set when the room has been turned around for the next talk: discard
+   * whatever transcript is being held rather than merging this snapshot into
+   * it.
+   */
+  reset?: boolean
   error?: string
   serverTime?: number
 }
@@ -77,6 +83,10 @@ export interface PublicConfig {
   authenticated: boolean
   baseUrl?: string
   protocolVersion: number
+  /** Whether this server has an admin token configured at all. */
+  adminEnabled: boolean
+  /** Whether this browser already holds a valid admin session. */
+  adminAuthenticated: boolean
 }
 
 /** How the live connection is getting on. */

@@ -293,6 +293,11 @@ code {
   color: var(--accent);
 }
 
+.button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 :focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
@@ -664,4 +669,49 @@ code {
   .footer-actions .button {
     flex: 1 1 auto;
   }
+}
+
+/* ---------------------------------------------------------------- admin */
+
+.admin-room {
+  max-width: 44rem;
+}
+
+.admin-room-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-room-heading h2 {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-room-heading code {
+  overflow-wrap: anywhere;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+}
+
+/* The armed state of a destructive button, with its explanation beside it so
+   that "the transcript is archived, not deleted" is read before the click
+   rather than worried about afterwards. */
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.confirm .small {
+  flex: 1 1 14rem;
 }
