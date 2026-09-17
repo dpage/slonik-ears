@@ -25,10 +25,11 @@ func TestDefaultVocabularyIsLongButWellOrdered(t *testing.T) {
 	// These are the ones Whisper reliably mangles into something an audience
 	// notices, so they have to be in the part that reaches the model.
 	for _, term := range []string{
-		"pgEdge", "Spock", "PostgreSQL", "Postgres", "psql", "pgAdmin",
+		"pgEdge", "Spock", "spockctrl", "Snowflake", "LOLOR", "ACE",
+		"PostgreSQL", "Postgres", "psql", "pgAdmin",
 		"pg_dump", "pg_dumpall", "pg_stat_statements", "pg_stat_activity",
-		"pg_hba.conf", "postgresql.conf", "pgBouncer", "pgBackRest",
-		"logical replication", "Slonik Ears",
+		"pg_hba.conf", "postgresql.conf", "PgBouncer", "pgBackRest",
+		"repset", "logical replication", "last-write-wins", "Slonik Ears",
 	} {
 		if !strings.Contains(prompt, term) {
 			t.Errorf("%q did not make it into the prompt; move it up vocabulary.txt", term)
@@ -46,6 +47,38 @@ func TestDefaultVocabularyIsEntirelyCoveredByTheRewrite(t *testing.T) {
 	for _, term := range []string{"pg_stat_progress_vacuum", "shared_buffers", "pgRouting", "CloudNativePG"} {
 		if got := c.Apply(strings.ToLower(strings.ReplaceAll(term, "_", " "))); got != term {
 			t.Errorf("a term from the tail of the glossary was not corrected: got %q, want %q", got, term)
+		}
+	}
+}
+
+func TestPgEdgeProductNamesAreCorrected(t *testing.T) {
+	// Spellings taken from docs.pgedge.com rather than from memory. These are
+	// the names an audience at a pgEdge event would notice most.
+	c := NewCanonicaliser(DefaultVocabulary)
+	for _, tc := range []struct{ got, want string }{
+		{"PG Edge runs Spock", "pgEdge runs Spock"},
+		{"the spock control tool", "the spock control tool"},
+		{"run spock ctrl now", "run spockctrl now"},
+		{"a rep set for each table", "a repset for each table"},
+		{"we use safe session pooling", "we use SafeSession pooling"},
+		{"cold front moves the data", "ColdFront moves the data"},
+		{"PG vectorize and PG tokenizer", "pg_vectorize and pg_tokenizer"},
+		{"the PG Edge control plane", "the pgEdge Control Plane"},
+	} {
+		if got := c.Apply(tc.got); got != tc.want {
+			t.Errorf("Apply(%q)\n got %q\nwant %q", tc.got, got, tc.want)
+		}
+	}
+
+	// ACE, LOLOR and Snowflake are a trap: all three are ordinary words in
+	// other contexts, so none of them may rewrite lower-case prose.
+	for _, s := range []string{
+		"an ace up his sleeve",
+		"a snowflake schema, ironically",
+		"the radar was down",
+	} {
+		if got := c.Apply(s); got != s {
+			t.Errorf("Apply(%q) rewrote it to %q", s, got)
 		}
 	}
 }

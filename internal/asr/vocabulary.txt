@@ -29,6 +29,10 @@ PostgreSQL
 Postgres
 pgEdge
 Spock
+spockctrl
+Snowflake
+LOLOR
+ACE
 psql
 pgAdmin
 pg_dump
@@ -40,37 +44,77 @@ pg_stat_statements
 pg_stat_activity
 pg_hba.conf
 postgresql.conf
-pgBouncer
+PgBouncer
 pgBackRest
 Patroni
 pgvector
 PostGIS
 libpq
 PL/pgSQL
-autovacuum
+repset
+replication set
 logical replication
 streaming replication
 replication slot
-publication
-subscription
+multi-master
+last-write-wins
+conflict resolution
 hot standby
 failover
 switchover
-multi-master
-last-write-wins
+autovacuum
 shared_buffers
 work_mem
 wal_level
 MVCC
 JSONB
-tablespace
-partitioning
 Slonik Ears
 
 # ---------------------------------------------------------------------------
 # Everything below this point is corrected in the transcript but is unlikely
 # to reach the prompt. Add anything you particularly care about nearer the top.
 # ---------------------------------------------------------------------------
+
+# pgEdge products, extensions and tools, as named at docs.pgedge.com
+pgEdge Distributed Postgres
+pgEdge Enterprise Postgres
+pgEdge Platform
+pgEdge Cloud
+pgEdge Control Plane
+pgEdge Ansible
+pgEdge Container
+pgEdge Helm
+pgEdge Enterprise Packages
+SafeSession
+ColdFront
+Radar
+pgEdge Anonymizer
+pgEdge Loadgen
+AI DBA Workbench
+pgEdge Postgres MCP Server
+pgEdge RAG Server
+pgEdge Docloader
+pgEdge Vectorizer
+pg_tokenizer
+pg_vectorize
+vchord_bm25
+pg_semantic_cache
+pgvolvra
+pg-healthcheck
+pgedge-mcp-bridge
+
+# Spock and its vocabulary
+spock.repset_add_table
+spock.repset_add_all_tables
+repset-create
+repset-add-table
+sub-add-repset
+replicate-ddl
+subscriber
+provider node
+replication origin
+delta-apply
+column-level conflict resolution
 
 # Client and server programs
 pg_ctl
@@ -150,6 +194,11 @@ PGDATA
 # Extensions
 pg_partman
 pg_cron
+pg_stat_monitor
+pgmq
+pldebugger
+system_stats
+supautils
 pg_repack
 pg_squeeze
 pg_trgm
@@ -159,7 +208,7 @@ pg_freespacemap
 pg_visibility
 pg_prewarm
 pg_walinspect
-pgaudit
+pgAudit
 pgcrypto
 pgrowlocks
 pgstattuple
@@ -209,6 +258,9 @@ pgBadger
 pgCenter
 pgmetrics
 check_postgres
+PostgREST
+psycopg2
+Barman Cloud Plugin
 HAProxy
 Keepalived
 etcd
@@ -327,8 +379,6 @@ bind parameter
 listen notify
 large object
 logical decoding
-replication origin
-conflict resolution
 commit timestamp
 quorum
 split-brain
