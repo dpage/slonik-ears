@@ -53,59 +53,148 @@ That builds the server, starts it on <http://localhost:8080>, and runs a
 listener with a fake transcriber against a sample recording. Open the page,
 click into the demo room, and try the stage display.
 
-## Running it for real
+## Running it for real on a Mac
 
-### 1. Install a Whisper backend
+The whole thing is three processes: a Whisper model server, the relay, and one
+listener per room. This walkthrough starts all three on one Mac. Copy and
+paste it in order.
 
-Transcription happens over HTTP against [whisper.cpp][whispercpp]'s own
-server, so nothing needs to be linked into these binaries and there is no
-Python anywhere:
+### Prerequisites
 
 ```bash
-brew install whisper-cpp          # provides whisper-server, whisper-cli, …
-make model MODEL=small.en         # ~488 MB, into ~/.cache/whisper
-make whisper-server               # starts it on 127.0.0.1:8081
+brew install go node whisper-cpp
 ```
 
-Models, smallest first: `tiny.en` (78 MB), `base.en` (148 MB), `small.en`
-(488 MB), `medium.en` (1.5 GB), and the multilingual `large-v3-turbo-q5_0`
-(574 MB). Drop the `.en` for multilingual variants. On Apple silicon the
-Homebrew build uses Metal, and `small.en` is the usual compromise between
-accuracy and keeping up with a fast speaker — but measure it in your room
-rather than trusting anybody's table of numbers, including this one:
+`whisper-cpp` is the speech-to-text engine. Check it brought the HTTP server
+with it — everything below depends on that one binary:
 
 ```bash
-ears-listener --room test --dry-run
+whisper-server --help | head -3
 ```
 
-`--dry-run` prints the transcript to the terminal instead of publishing it, so
-you can hear what the model hears before an audience does.
+If that comes back "command not found", the formula on your machine did not
+ship it; build [whisper.cpp][whispercpp] from source and put its
+`build/bin/whisper-server` on your `PATH`.
 
-### 2. Start the server
+### Build Slonik Ears
 
 ```bash
-export EARS_PUBLISH_TOKEN=$(openssl rand -hex 24)
-make server
+git clone https://github.com/dpage/slonik-ears.git
+cd slonik-ears
+make build            # web app, server and listener into ./bin
+```
+
+### Fetch a model
+
+```bash
+make model MODEL=small.en     # ~488 MB, into ~/.cache/whisper
+```
+
+Smallest first: `tiny.en` (78 MB), `base.en` (148 MB), `small.en` (488 MB),
+`medium.en` (1.5 GB), and the multilingual `large-v3-turbo-q5_0` (574 MB).
+Drop the `.en` for multilingual variants. `small.en` is the usual compromise
+between accuracy and keeping up with a fast speaker, but measure it in your
+own room rather than trusting anybody's table of numbers, this one included.
+
+### Make a publish token
+
+The relay and the listener are separate processes in separate terminals, and
+both need the same secret. Generate it once and put it somewhere both can read:
+
+```bash
+openssl rand -hex 24 > ~/.ears-token
+chmod 600 ~/.ears-token
+```
+
+### Terminal 1 — the model server
+
+```bash
+whisper-server \
+  --model ~/.cache/whisper/ggml-small.en.bin \
+  --host 127.0.0.1 --port 8081 \
+  --threads 8
+```
+
+**The port matters.** `whisper-server` also defaults to 8080, which is where
+the relay wants to live, so give it 8081 explicitly or the second process to
+start will fail to bind. `make whisper-server` runs exactly this command.
+
+Leave it running. It loads the model once and then answers requests.
+
+### Terminal 2 — the relay and web app
+
+```bash
+cd slonik-ears
+export EARS_PUBLISH_TOKEN=$(cat ~/.ears-token)
+export EARS_EVENT_NAME="PGConf Europe 2026"
+
 ./bin/ears-server --data-dir ./data
 ```
 
-It prints the LAN addresses attendees can use. For a single room on one
-machine, that is the whole job.
+It prints where attendees can reach it:
 
-### 3. Start a listener in each room
+```
+time=... level=INFO msg="Slonik Ears server started" addr=[::]:8080 rooms_configured=0 auto_rooms=true
+
+  Attendees can watch at:
+    http://192.168.1.50:8080
+```
+
+Note that address — the listener and the audience both need it. Leave this
+running too.
+
+### Terminal 3 — the listener in the room
+
+First, find the microphone and check the model can hear it:
+
+```bash
+cd slonik-ears
+export EARS_PUBLISH_TOKEN=$(cat ~/.ears-token)
+
+./bin/ears-listener --list-devices
+```
+
+```
+Capture devices (use --device with the index or part of the name):
+  * 0  MacBook Pro Microphone
+    1  Scarlett Solo USB
+    2  BlackHole 2ch
+```
+
+Now rehearse without publishing anything. Say a few sentences; they should
+appear in the terminal:
+
+```bash
+./bin/ears-listener --room rehearsal --dry-run --device "Scarlett"
+```
+
+**macOS will ask for microphone permission the first time**, and it asks on
+behalf of whatever is running the command — Terminal, iTerm, or the binary
+itself. Grant it under System Settings ▸ Privacy & Security ▸ Microphone. If
+you skip this, capture silently records digital silence and you get no
+transcript at all.
+
+Happy with what it hears? Stop it with Ctrl-C and go live:
 
 ```bash
 ./bin/ears-listener \
-  --room main-hall --title "Main Hall" --track "Track A" \
+  --room main-hall \
+  --title "Main Hall" \
+  --track "Track A" \
+  --speaker "Dave Page" \
+  --device "Scarlett" \
   --server http://192.168.1.50:8080 \
-  --token "$EARS_PUBLISH_TOKEN"
+  --transcript ~/transcripts/main-hall.jsonl
 ```
 
-Each room gets its own `--room` id and its own listener; they all publish to
-the same server, and the lobby fills in by itself. A listener that loses the
-network keeps transcribing and buffers the text until it can reconnect.
+It picks up `EARS_PUBLISH_TOKEN` from the environment, and defaults to the
+Whisper server on `127.0.0.1:8081`. `--transcript` keeps a local copy of every
+committed line, which is your insurance against the network.
 
-### Where to watch
+### Watch it
+
+Open <http://192.168.1.50:8080> on a phone on the same network, or put the
+stage display on a screen beside the speaker:
 
 | Page | Who it is for |
 | --- | --- |
@@ -116,6 +205,37 @@ network keeps transcribing and buffers the text until it can reconnect.
 
 The stage view takes `?lines=6`, `?size=120` (percent) and `?qr=0` if the
 projector is smaller, larger or busier than the defaults assume.
+
+### Keep the Mac awake
+
+A machine that sleeps mid-talk stops transcribing. In a fourth terminal, or
+before the listener:
+
+```bash
+caffeinate -dimsu
+```
+
+### More than one room
+
+One listener per room, all pointing at the same relay, each with its own
+`--room` id. On the room's own Mac:
+
+```bash
+./bin/ears-listener --room seminar-1 --title "Seminar Room 1" --track "Track B" \
+  --server http://192.168.1.50:8080
+```
+
+Each room needs its own `whisper-server` on its own machine — the model is the
+expensive part, and one server will not keep up with several rooms at once.
+The relay handles as many rooms as you have listeners; the lobby fills in by
+itself as each one connects.
+
+### Stopping
+
+Ctrl-C each terminal. The listener finishes transcribing whatever was being
+said, flushes it to the relay, and then exits — so the last sentence of the
+talk is not lost. Transcripts stay in `./data` on the relay and in whatever
+you passed to `--transcript`.
 
 ## When the venue network fights back
 
@@ -145,23 +265,30 @@ smallest instance any provider sells is ample: a `t4g.nano` or equivalent, at
 a few pounds a month. Do check current prices, and size for TLS handshakes and
 concurrent sockets rather than for CPU.
 
-## macOS notes
+## Getting good audio on a Mac
 
-* **Microphone permission.** The first run triggers a permission prompt for
-  whatever is running the binary — Terminal, iTerm, or the binary itself.
-  Grant it under System Settings ▸ Privacy & Security ▸ Microphone. Without
-  it, capture silently produces silence.
-* **Capturing the room's PA rather than a laptop microphone** gives markedly
-  better results. Either take a feed from the mixing desk into a USB audio
-  interface, or install a virtual device such as BlackHole or Loopback and
-  select it with `--device blackhole`. macOS will not let an application
-  record system audio without one.
-* **`--list-devices`** shows what is available, with the default marked.
-* **Stop the Mac sleeping** for the duration: `caffeinate -dimsu` alongside the
-  listener, or Settings ▸ Displays ▸ Advanced.
-* **Running it automatically** — there is a LaunchAgent example in `deploy/`.
-  It must be an agent rather than a daemon, because microphone access belongs
-  to a logged-in session.
+The walkthrough above will work with the built-in microphone, and the results
+will be mediocre — a laptop on a lectern hears the room, not the speaker.
+Better, in ascending order:
+
+* **A feed from the mixing desk** into a USB audio interface. This is the best
+  option by a distance: it is the same signal the PA is amplifying, with no
+  room acoustics and no audience in it. Select it with `--device "Scarlett"`
+  or whatever `--list-devices` calls it.
+* **A lapel or headset microphone** into the same interface.
+* **A virtual device** such as BlackHole or Loopback, if the audio you want is
+  already playing on the Mac — a video call, or a media player. macOS will not
+  let an application record system output without one. Install it, route the
+  audio to it, and use `--device blackhole`.
+
+Two things that cost transcripts if forgotten, both covered in the walkthrough
+but worth repeating because they are silent failures: **microphone permission**
+belongs to the application running the binary, and a **sleeping Mac** stops
+transcribing.
+
+**Running a listener automatically** — there is a LaunchAgent example in
+`deploy/`. It must be an agent rather than a daemon, because microphone access
+belongs to a logged-in session.
 
 ## Configuration
 
