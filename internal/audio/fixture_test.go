@@ -103,7 +103,7 @@ func TestFixtureHasPauses(t *testing.T) {
 	}
 	pcm = Resample(pcm, rate, SampleRate)
 
-	var quietest float64 = math.MaxFloat64
+	quietest := math.MaxFloat64
 	for i := 0; i+FrameSize <= len(pcm); i += FrameSize {
 		if l := rms(pcm[i : i+FrameSize]); l < quietest {
 			quietest = l
