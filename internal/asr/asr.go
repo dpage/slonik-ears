@@ -35,7 +35,12 @@ type Segment struct {
 
 // Result is what a backend returns for one chunk of audio.
 type Result struct {
-	Text     string
+	Text string
+	// Raw is the backend's output before CleanTranscript ran over it. Text
+	// being empty whilst Raw is not means the cleaning rules threw the whole
+	// utterance away, which is worth seeing in a debug log rather than
+	// guessing at.
+	Raw      string
 	Language string
 	Segments []Segment
 	// Took is how long the backend needed. The listener logs it so you can

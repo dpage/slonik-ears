@@ -186,7 +186,7 @@ func (c *WhisperClient) Transcribe(ctx context.Context, pcm []float32, sampleRat
 		if text == "" || strings.HasPrefix(text, "{") {
 			return Result{}, fmt.Errorf("asr: could not parse response: %w", err)
 		}
-		return Result{Text: CleanTranscript(text), Took: time.Since(start)}, nil
+		return Result{Text: CleanTranscript(text), Raw: text, Took: time.Since(start)}, nil
 	}
 	if wr.Error != nil {
 		return Result{}, fmt.Errorf("asr: backend error: %v", wr.Error)
@@ -194,6 +194,7 @@ func (c *WhisperClient) Transcribe(ctx context.Context, pcm []float32, sampleRat
 
 	res := Result{
 		Text:     CleanTranscript(wr.Text),
+		Raw:      strings.TrimSpace(wr.Text),
 		Language: wr.Language,
 		Took:     time.Since(start),
 	}

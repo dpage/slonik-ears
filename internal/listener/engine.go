@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -169,6 +170,19 @@ func (e *Engine) Run(ctx context.Context) error {
 
 	frames := e.src.Frames()
 	err := func() error {
+		// The instrumentation below is why this loop is longer than it looks
+		// like it should be. The failure people actually hit is "it went quiet
+		// and I have no idea why", and from the audience's seat a detector
+		// that has decided the room is silent, a capture ring that has
+		// overflowed, and a model whose output the cleaning rules discarded
+		// are indistinguishable. Everything here is debug level bar the
+		// dropped-frames warning, which is not a diagnostic so much as news.
+		dropper, _ := e.src.(audio.Dropper)
+		speaking := false
+		lastDropped := int64(0)
+		heartbeat := time.NewTicker(time.Second)
+		defer heartbeat.Stop()
+
 		for {
 			select {
 			case frame, ok := <-frames:
@@ -177,9 +191,31 @@ func (e *Engine) Run(ctx context.Context) error {
 				}
 				reqs, level := e.chunk.Push(frame)
 				e.setLevel(level)
+				if now := e.chunk.Speaking(); now != speaking {
+					speaking = now
+					e.logSpeechEdge(now, level)
+				}
 				for _, r := range reqs {
+					e.log.Debug("chunk ready",
+						"kind", kindName(r.Kind),
+						"audio", time.Duration(r.EndMs-r.StartMs)*time.Millisecond,
+						"at", time.Duration(r.StartMs)*time.Millisecond,
+						"peak", round4(r.Level))
 					e.enqueue(r)
 				}
+			case <-heartbeat.C:
+				if dropper != nil {
+					if d := dropper.Dropped(); d > lastDropped {
+						// Not debug level: dropped frames are audio that no
+						// longer exists, and the operator wants to know whilst
+						// the talk is still going on.
+						e.log.Warn("dropped captured audio: transcription is not keeping up with the room",
+							"frames", d,
+							"audio_lost", time.Duration(d*audio.FrameMs)*time.Millisecond)
+						lastDropped = d
+					}
+				}
+				e.logHeartbeat()
 			case <-ctx.Done():
 				return nil
 			}
@@ -212,6 +248,63 @@ func (e *Engine) Run(ctx context.Context) error {
 	stopWorker()
 	wg.Wait()
 	return err
+}
+
+// logSpeechEdge records the detector changing its mind, with the numbers that
+// decided it. A start threshold that has crept up to meet the speaker's level
+// is what a room that has gone silent on you looks like from here.
+//
+// It reads chunker state directly, so it may only be called from the frame
+// loop that owns it.
+func (e *Engine) logSpeechEdge(speaking bool, level float64) {
+	if !e.log.Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+	start, stop := e.chunk.Thresholds()
+	msg := "speech ended"
+	if speaking {
+		msg = "speech started"
+	}
+	e.log.Debug(msg,
+		"level", round4(level),
+		"noise_floor", round4(e.chunk.NoiseFloor()),
+		"start_threshold", round4(start),
+		"stop_threshold", round4(stop),
+		"at", e.chunk.Elapsed().Round(time.Millisecond))
+}
+
+// logHeartbeat says, once a second, what the pipeline believes is going on.
+// Read against the wall clock it distinguishes "nobody is talking" from "the
+// detector cannot hear you" from "the model is hopelessly behind".
+//
+// It reads chunker state directly, so it may only be called from the frame
+// loop that owns it.
+func (e *Engine) logHeartbeat() {
+	if !e.log.Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+	start, _ := e.chunk.Thresholds()
+	e.stateMu.Lock()
+	level, segments := e.level, e.segments
+	e.stateMu.Unlock()
+	e.mu.Lock()
+	finals, partial := len(e.queuedFinals), e.queuedPartia != nil
+	e.mu.Unlock()
+
+	e.log.Debug("heartbeat",
+		"at", e.chunk.Elapsed().Round(time.Second),
+		"level", round4(level),
+		"noise_floor", round4(e.chunk.NoiseFloor()),
+		"start_threshold", round4(start),
+		"speaking", e.chunk.Speaking(),
+		"utterance", time.Duration(e.chunk.UtteranceMs())*time.Millisecond,
+		"voiced", time.Duration(e.chunk.VoicedMs())*time.Millisecond,
+		"queued_finals", finals,
+		"queued_partial", partial,
+		"transcribing", e.busy.Load(),
+		"segments", segments,
+		"connected", e.pub.Connected(),
+		"undelivered", e.pub.Queued())
 }
 
 func (e *Engine) enqueue(r audio.Request) {
@@ -315,6 +408,14 @@ func (e *Engine) transcribe(ctx context.Context, req audio.Request) {
 		Partial:   req.Kind == audio.KindPartial,
 	}
 
+	audioLen := time.Duration(req.EndMs-req.StartMs) * time.Millisecond
+	e.log.Debug("transcribing",
+		"kind", kindName(req.Kind),
+		"audio", audioLen,
+		"samples", len(req.PCM),
+		"timeout", timeout,
+		"prompt", truncate(opts.Prompt, 60))
+
 	res, err := e.asr.Transcribe(reqCtx, req.PCM, audio.SampleRate, opts)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -331,13 +432,31 @@ func (e *Engine) transcribe(ctx context.Context, req audio.Request) {
 
 	text := strings.TrimSpace(res.Text)
 	if text == "" {
-		if req.Kind == audio.KindPartial {
-			e.pub.PublishPartial(protocol.Partial{Text: ""})
+		// Clear the preview whichever kind this was. A final that produces no
+		// text used to return here without touching the partial, which left
+		// the last preview on every screen in the room, greyed out and
+		// unconfirmed, until somebody said something else: the audience sees a
+		// half sentence that never resolves.
+		e.pub.PublishPartial(protocol.Partial{Text: ""})
+		if raw := strings.TrimSpace(res.Raw); raw != "" {
+			// The model did say something and the cleaning rules threw it
+			// away. Worth seeing, since that is the difference between a deaf
+			// microphone and an over-eager filter.
+			e.log.Debug("discarded by cleaning",
+				"kind", kindName(req.Kind), "audio", audioLen, "raw", truncate(raw, 120))
+		} else {
+			e.log.Debug("no text",
+				"kind", kindName(req.Kind), "audio", audioLen,
+				"took", res.Took.Round(time.Millisecond))
 		}
 		return
 	}
 
 	if req.Kind == audio.KindPartial {
+		e.log.Debug("partial",
+			"audio", audioLen,
+			"took", res.Took.Round(time.Millisecond),
+			"text", truncate(text, 80))
 		e.pub.PublishPartial(protocol.Partial{Text: text, At: time.Now().UnixMilli()})
 		return
 	}
@@ -358,10 +477,18 @@ func (e *Engine) transcribe(ctx context.Context, req audio.Request) {
 	n := e.segments
 	e.stateMu.Unlock()
 
+	// "speed" is audio duration over wall clock: below 1 the model is slower
+	// than the person speaking, the queue only grows, and the answer is a
+	// smaller model or --no-partials.
+	speed := 0.0
+	if res.Took > 0 {
+		speed = audioLen.Seconds() / res.Took.Seconds()
+	}
 	e.log.Info("segment",
 		"n", n,
-		"audio", time.Duration(req.EndMs-req.StartMs)*time.Millisecond,
+		"audio", audioLen,
 		"took", res.Took.Round(time.Millisecond),
+		"speed", math.Round(speed*10)/10,
 		"text", truncate(text, 80))
 }
 
@@ -441,6 +568,12 @@ func kindName(k audio.RequestKind) string {
 		return "partial"
 	}
 	return "final"
+}
+
+// round4 keeps audio levels readable in a log line: they are small numbers and
+// seventeen significant figures of them help nobody.
+func round4(v float64) float64 {
+	return math.Round(v*10000) / 10000
 }
 
 func truncate(s string, n int) string {

@@ -112,6 +112,54 @@ func TestEngineTranscribesEveryUtterance(t *testing.T) {
 	}
 }
 
+// silentTranscriber stands in for a model whose output the cleaning rules
+// discard entirely, which is what "[BLANK_AUDIO]" or a hallucinated "Thank
+// you." over room noise comes back as.
+type silentTranscriber struct{}
+
+func (silentTranscriber) Transcribe(context.Context, []float32, int, asr.Options) (asr.Result, error) {
+	return asr.Result{Raw: "[BLANK_AUDIO]"}, nil
+}
+func (silentTranscriber) Name() string { return "silent" }
+func (silentTranscriber) Close() error { return nil }
+
+func TestEngineClearsThePreviewWhenAFinalHasNoText(t *testing.T) {
+	// An utterance the model returns nothing usable for must still clear the
+	// preview: otherwise the last partial stays on every screen in the room,
+	// greyed out and never confirmed, until somebody speaks again.
+	var all [][]float32
+	all = append(all, frames(600, 0)...)
+	all = append(all, frames(1500, 0.3)...)
+	all = append(all, frames(1000, 0)...)
+
+	pub := &capturePublisher{}
+	cfg := DefaultEngineConfig()
+	cfg.Chunker.PartialIntervalMs = 0
+	cfg.Logger = testLogger()
+
+	engine, err := NewEngine(cfg, newFakeSource(all), silentTranscriber{}, pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := engine.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := pub.finalTexts(); len(got) != 0 {
+		t.Fatalf("published a segment for unusable output: %v", got)
+	}
+	pub.mu.Lock()
+	defer pub.mu.Unlock()
+	if len(pub.partials) == 0 {
+		t.Fatal("the stale preview was never cleared")
+	}
+	if last := pub.partials[len(pub.partials)-1]; last.Text != "" {
+		t.Fatalf("expected a clearing partial, got %q", last.Text)
+	}
+}
+
 func TestEngineDropsSilence(t *testing.T) {
 	pub := &capturePublisher{}
 	cfg := DefaultEngineConfig()
