@@ -38,6 +38,7 @@ func run() error {
 		listDevices = flag.Bool("list-devices", false, "list audio capture devices and exit")
 		showVersion = flag.Bool("version", false, "print the version and exit")
 		dryRun      = flag.Bool("dry-run", false, "transcribe to the terminal without connecting to a server")
+		printVocab  = flag.Bool("print-vocabulary", false, "print the glossary this configuration would use, one term per line, and exit")
 	)
 	cfg := listener.DefaultConfig()
 	cfg.BindFlags(flag.CommandLine)
@@ -60,6 +61,21 @@ func run() error {
 	cfg.ApplyEnv()
 	log := newLogger(cfg.LogLevel)
 	slog.SetDefault(log)
+
+	// Printing the glossary needs the config but nothing else, so it comes
+	// before validation: the point of the flag is to be able to pipe the
+	// effective list into a file and edit it, which should not first require a
+	// room name and a publish token.
+	terms, err := cfg.ResolveVocabulary()
+	if err != nil {
+		return err
+	}
+	if *printVocab {
+		for _, term := range terms {
+			fmt.Println(term)
+		}
+		return nil
+	}
 
 	if err := cfg.Validate(*dryRun); err != nil {
 		return err
@@ -125,7 +141,7 @@ func run() error {
 		pub = client
 	}
 
-	engine, err := listener.NewEngine(cfg.EngineConfig(log), src, transcriber, pub)
+	engine, err := listener.NewEngine(cfg.EngineConfig(log, terms), src, transcriber, pub)
 	if err != nil {
 		return err
 	}
@@ -134,7 +150,8 @@ func run() error {
 		"room", cfg.Room,
 		"server", cfg.Server,
 		"backend", transcriber.Name(),
-		"language", cfg.Language)
+		"language", cfg.Language,
+		"glossary_terms", len(terms))
 
 	runErr := engine.Run(ctx)
 
@@ -271,5 +288,10 @@ Examples:
   # A real room, transcribed locally by whisper.cpp:
   whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081 &
   ears-listener --room main-hall --title "Main Hall" --token "$EARS_PUBLISH_TOKEN"
+
+  # Teach the model your jargon: start from the built-in Postgres glossary,
+  # edit it, and hand it back.
+  ears-listener --print-vocabulary > vocabulary.txt
+  ears-listener --room main-hall --vocabulary vocabulary.txt ...
 `)
 }

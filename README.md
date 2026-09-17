@@ -296,6 +296,47 @@ transcribing.
 `deploy/`. It must be an agent rather than a daemon, because microphone access
 belongs to a logged-in session.
 
+## Teaching it your jargon
+
+Whisper is confident and wrong about exactly the words a technical audience
+notices. Left to itself it writes "PG Admin" for pgAdmin, "PG Start statements"
+for pg_stat_statements, "PG Dump Hall" for pg_dumpall and "PG Edge" for
+pgEdge, which is the sort of thing that makes a transcript look unreliable even
+where it is accurate.
+
+The listener carries a glossary to deal with it, used in two ways: the terms go
+to the model as context, which measurably helps it *hear* the right words, and
+they are also applied to the output afterwards, which makes it *spell* them
+consistently. Both are needed, because prompting alone is unreliable in an
+interesting way: one glossary fixed "last right wins" into "last-write-wins"
+whilst rendering pgEdge as "-pgedge", and a shorter one got pgEdge right and
+lost the other. The rewrite is exact rather than fuzzy, so it corrects casing
+and spacing ("PG Edge", "pg edge", "-pgedge" all become pgEdge) and leaves
+alone anything that merely sounds similar.
+
+A Postgres glossary is built in, so the default behaviour is usually what you
+want. To see it, change it, or replace it:
+
+```bash
+ears-listener --print-vocabulary > vocabulary.txt   # start from the built-in list
+$EDITOR vocabulary.txt                              # one term per line, # for comments
+ears-listener --room main-hall --vocabulary vocabulary.txt ...
+```
+
+The same thing can live in the config file as `vocabulary_file`, or inline as
+`vocabulary:`. Any of those replaces the built-in list rather than adding to
+it, so the glossary in force is always exactly what `--print-vocabulary`
+prints. `--no-vocabulary` turns it off for an event that is not about
+databases.
+
+Keep it to terms the model actually gets wrong. A longer glossary is not a
+better one: the model caps how much prompt it will accept, so a long list
+crowds out the recent transcript that keeps sentences flowing from one chunk to
+the next, and the listener will warn you at startup if yours does not fit.
+Ordinary words are left to the model's own capitalisation, which is why
+"logical replication" in the glossary does not strip the capital off a sentence
+that happens to begin with it.
+
 ## Configuration
 
 Both programs take flags, an optional YAML file, and environment variables, in
