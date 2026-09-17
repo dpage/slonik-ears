@@ -7,7 +7,7 @@
 # one. The server has no cgo, so a multi-architecture image needs no emulation
 # and builds in about the time a single-architecture one does.
 
-FROM --platform=$BUILDPLATFORM node:22-alpine AS web
+FROM --platform=$BUILDPLATFORM node:26-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
