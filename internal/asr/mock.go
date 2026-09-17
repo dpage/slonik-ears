@@ -4,7 +4,7 @@ import (
 	"context"
 	"math"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
@@ -15,7 +15,12 @@ import (
 type Mock struct {
 	// Latency simulates model think time.
 	Latency time.Duration
-	n       atomic.Int64
+
+	mu sync.Mutex
+	// next is where the following utterance starts in mockWords. Only a
+	// committed segment advances it, which is what makes an interim result a
+	// prefix of the final it grows into.
+	next int
 }
 
 var mockWords = strings.Fields(`the elephant in the room is replication lag but postgres 
@@ -54,7 +59,20 @@ func (m *Mock) Transcribe(ctx context.Context, pcm []float32, sampleRate int, op
 	if words < 1 {
 		words = 1
 	}
-	start := int(m.n.Add(int64(words))) - words
+
+	// A real model transcribes the same utterance twice: once part-way
+	// through for the live preview, and again when the speaker pauses. The
+	// second result extends the first rather than replacing it with something
+	// unrelated. Reproduce that by letting only a committed segment move the
+	// cursor on, so successive previews of one utterance grow from the same
+	// starting word, and successive utterances read as continuous prose.
+	m.mu.Lock()
+	start := m.next
+	if !opts.Partial {
+		m.next = (m.next + words) % len(mockWords)
+	}
+	m.mu.Unlock()
+
 	out := make([]string, 0, words)
 	for i := 0; i < words; i++ {
 		out = append(out, mockWords[(start+i)%len(mockWords)])

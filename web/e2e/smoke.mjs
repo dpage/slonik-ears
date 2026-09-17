@@ -50,6 +50,66 @@ async function visit(path, name, viewport, settleMs = 4000) {
   return { text, consoleErrors }
 }
 
+/**
+ * The transcript must follow the speaker without the page growing: the
+ * newest line stays on screen, and it only stops following when the reader
+ * scrolls back to read something.
+ */
+async function checkFollowsTheSpeaker(path, name, viewport) {
+  const context = await browser.newContext({ viewport })
+  const page = await context.newPage()
+  await page.goto(base + path, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(3000)
+
+  const state = () =>
+    page.evaluate(() => {
+      const scroller = document.querySelector('.transcript')
+      const lines = [...document.querySelectorAll('.transcript .line')]
+      const last = lines[lines.length - 1]?.getBoundingClientRect()
+      const doc = document.scrollingElement
+      return {
+        pageScrolls: doc.scrollHeight > doc.clientHeight + 1,
+        overflowing: scroller.scrollHeight > scroller.clientHeight + 1,
+        scrollTop: Math.round(scroller.scrollTop),
+        atBottom: scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 4,
+        lastVisible: last ? last.bottom <= window.innerHeight + 1 && last.top >= 0 : false,
+        jumpButton: !!document.querySelector('.jump'),
+        lineCount: lines.length,
+      }
+    })
+
+  const initial = await state()
+  check(initial.overflowing, `[${name}] there is more transcript than fits, so following matters`)
+  // The page growing instead of the transcript scrolling is what used to
+  // carry the newest line off the bottom of the screen.
+  check(!initial.pageScrolls, `[${name}] the page itself does not scroll`)
+  check(initial.lastVisible, `[${name}] the newest line is on screen`)
+  check(!initial.jumpButton, `[${name}] no "jump to live" button while following`)
+
+  await page.waitForTimeout(6000)
+  const later = await state()
+  check(later.lineCount > initial.lineCount, `[${name}] new lines arrived`)
+  check(later.atBottom && later.lastVisible, `[${name}] still following after new lines`)
+
+  // Scroll back, as a reader catching up on a missed sentence would.
+  await page.evaluate(() => {
+    document.querySelector('.transcript').scrollTop = 200
+  })
+  await page.waitForTimeout(1500)
+  const parked = await page.evaluate(() => Math.round(document.querySelector('.transcript').scrollTop))
+  await page.waitForTimeout(6000)
+  const held = await state()
+  check(Math.abs(held.scrollTop - parked) < 50, `[${name}] scrolling back stops the auto-follow`)
+  check(held.jumpButton, `[${name}] "jump to live" offered once scrolled back`)
+
+  await page.click('.jump')
+  await page.waitForTimeout(800)
+  const resumed = await state()
+  check(resumed.atBottom && resumed.lastVisible, `[${name}] "jump to live" returns to the newest line`)
+
+  await context.close()
+}
+
 try {
   const lobby = await visit('/', 'lobby', { width: 1280, height: 800 }, 2000)
   check(lobby.consoleErrors.length === 0, `lobby has no console errors ${lobby.consoleErrors.join('; ')}`)
@@ -68,6 +128,9 @@ try {
 
   const missing = await visit('/r/no-such-room', 'missing', { width: 1280, height: 800 }, 2500)
   check(/No such room/i.test(missing.text), 'an unknown room is reported rather than hanging')
+
+  await checkFollowsTheSpeaker(`/r/${room}`, 'desktop', { width: 1280, height: 800 })
+  await checkFollowsTheSpeaker(`/r/${room}`, 'phone', { width: 390, height: 844 })
 } finally {
   await browser.close()
 }

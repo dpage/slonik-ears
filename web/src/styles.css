@@ -63,6 +63,16 @@ body,
   height: 100%;
 }
 
+/* Dynamic viewport units keep the layout honest when a phone browser's
+   toolbars slide in and out mid-talk. */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -78,7 +88,14 @@ body {
 .page {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  /* A definite height, not merely a minimum: the transcript below is a flex
+     child with its own scrollbar, and `flex: 1` against an auto-height parent
+     simply grows to fit the content instead of scrolling. That is what made
+     the page scroll rather than the transcript, carrying the newest line off
+     the bottom of the screen. The stage view has always used height for the
+     same reason. */
+  height: 100%;
+  min-height: 0;
   background: var(--bg);
   color: var(--fg);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
@@ -453,13 +470,12 @@ code {
   max-width: 48rem;
   margin: 0 auto;
   width: 100%;
-  scroll-behavior: smooth;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .transcript {
-    scroll-behavior: auto;
-  }
+  /* Deliberately not smooth. Following the speaker reassigns scrollTop on
+     every new line, and animating that means the container is perpetually
+     mid-flight, emitting intermediate scroll events that look like the reader
+     scrolling back. Jumping to the live end should also be immediate: nobody
+     wants to watch an animation travel the length of a talk. */
+  scroll-behavior: auto;
 }
 
 .line {
