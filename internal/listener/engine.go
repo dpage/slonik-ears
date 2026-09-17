@@ -141,14 +141,16 @@ func NewEngine(cfg EngineConfig, src audio.Source, transcriber asr.Transcriber, 
 	prompt, dropped := asr.VocabularyPrompt(cfg.Vocabulary)
 	e.vocabPrompt = prompt
 	if len(dropped) > 0 {
-		// Whisper keeps only the last couple of hundred tokens of a prompt, so
-		// an over-long glossary does not fail, it stops working partway down
-		// the list. Say which terms went, rather than leaving somebody to
-		// wonder why the one they added at the bottom is still wrong. The
-		// rewrite still covers all of them, so this is a degradation and not a
-		// loss.
-		e.log.Warn("glossary is too long for the model's prompt; these terms will only be corrected after the fact",
-			"dropped", strings.Join(dropped, ", "), "budget_chars", asr.PromptBudget)
+		// Not a warning: the built-in glossary is deliberately longer than the
+		// prompt can hold, because the two uses have different appetites. The
+		// prompt takes what fits from the top of the list and helps the model
+		// hear those terms; the rewrite covers all of them regardless. Worth
+		// saying plainly, though, so that somebody whose term is coming out
+		// misheard rather than misspelt can move it up the list.
+		e.log.Info("glossary is longer than the model's prompt allows",
+			"in_prompt", len(cfg.Vocabulary)-len(dropped),
+			"corrected_only_afterwards", len(dropped),
+			"budget_chars", asr.PromptBudget)
 	}
 
 	if cfg.TranscriptFile != "" {

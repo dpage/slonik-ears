@@ -279,14 +279,7 @@ func readVocabularyFile(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read vocabulary: %w", err)
 	}
-	var terms []string
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		terms = append(terms, line)
-	}
+	terms := asr.ParseVocabulary(string(data))
 	if len(terms) == 0 {
 		return nil, fmt.Errorf("vocabulary file %s has no terms in it", path)
 	}

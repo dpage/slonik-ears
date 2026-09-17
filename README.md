@@ -329,13 +329,30 @@ it, so the glossary in force is always exactly what `--print-vocabulary`
 prints. `--no-vocabulary` turns it off for an event that is not about
 databases.
 
-Keep it to terms the model actually gets wrong. A longer glossary is not a
-better one: the model caps how much prompt it will accept, so a long list
-crowds out the recent transcript that keeps sentences flowing from one chunk to
-the next, and the listener will warn you at startup if yours does not fit.
-Ordinary words are left to the model's own capitalisation, which is why
-"logical replication" in the glossary does not strip the capital off a sentence
-that happens to begin with it.
+**Order matters, and the list is longer than the prompt.** The built-in
+glossary runs to several hundred terms, covering the client programs, the
+system catalogues and statistics views, the common extensions, the pooling and
+high-availability tooling, the configuration parameters people say out loud and
+a good deal of the vocabulary of a replication or performance talk. The model
+will only accept a few hundred characters of prompt, though, so the prompt is
+filled from the top of the list downwards and the rest is corrected in the
+output only. That is why the list is ordered rather than alphabetical: the
+terms said constantly and mangled reliably are at the top. The listener says
+which way the split fell when it starts:
+
+```
+msg="glossary is longer than the model's prompt allows" in_prompt=48 corrected_only_afterwards=299
+```
+
+If something of yours is coming out *misheard* rather than merely misspelt,
+move it nearer the top of your own copy. If it is only misspelt, its position
+does not matter.
+
+Ordinary words are left to the model's own capitalisation, so "logical
+replication" in the glossary cannot strip the capital off a sentence beginning
+with it, and terms written in capitals never rewrite lower-case prose, which is
+what stops a glossary containing GIN, HOT and TOAST from turning gin, hot and
+toast into index internals.
 
 ## Configuration
 

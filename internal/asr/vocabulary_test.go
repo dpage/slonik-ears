@@ -5,19 +5,79 @@ import (
 	"testing"
 )
 
-func TestDefaultVocabularyFitsItsOwnBudget(t *testing.T) {
-	// A shipped default that trips its own truncation warning on first run
-	// would be a poor advertisement for the warning.
-	prompt, dropped := VocabularyPrompt(DefaultVocabulary)
-	if len(dropped) > 0 {
-		t.Errorf("the built-in glossary does not fit in %d characters; dropped %v", PromptBudget, dropped)
+func TestDefaultVocabularyIsLongButWellOrdered(t *testing.T) {
+	// The built-in glossary is deliberately far longer than the prompt can
+	// hold, because the prompt and the rewrite have different appetites. What
+	// matters is that the terms most worth prompting are near the top, where
+	// they will actually get there.
+	if len(DefaultVocabulary) < 200 {
+		t.Errorf("the built-in glossary has only %d terms; it is meant to be comprehensive", len(DefaultVocabulary))
 	}
+
+	prompt, dropped := VocabularyPrompt(DefaultVocabulary)
 	if len(prompt) > PromptBudget {
 		t.Errorf("rendered prompt is %d characters, over the %d budget", len(prompt), PromptBudget)
 	}
-	for _, term := range []string{"pgEdge", "pg_stat_statements", "pgAdmin", "pg_dumpall"} {
+	if len(dropped) == 0 {
+		t.Error("nothing was dropped, so either the glossary shrank or the budget grew")
+	}
+
+	// These are the ones Whisper reliably mangles into something an audience
+	// notices, so they have to be in the part that reaches the model.
+	for _, term := range []string{
+		"pgEdge", "Spock", "PostgreSQL", "Postgres", "psql", "pgAdmin",
+		"pg_dump", "pg_dumpall", "pg_stat_statements", "pg_stat_activity",
+		"pg_hba.conf", "postgresql.conf", "pgBouncer", "pgBackRest",
+		"logical replication", "Slonik Ears",
+	} {
 		if !strings.Contains(prompt, term) {
-			t.Errorf("%q is missing from the glossary, and it is one of the ones Whisper gets wrong", term)
+			t.Errorf("%q did not make it into the prompt; move it up vocabulary.txt", term)
+		}
+	}
+}
+
+func TestDefaultVocabularyIsEntirelyCoveredByTheRewrite(t *testing.T) {
+	// Whatever misses the prompt is still corrected afterwards, which is the
+	// reason a long list costs nothing.
+	c := NewCanonicaliser(DefaultVocabulary)
+	if c == nil {
+		t.Fatal("no canonicaliser was built from the built-in glossary")
+	}
+	for _, term := range []string{"pg_stat_progress_vacuum", "shared_buffers", "pgRouting", "CloudNativePG"} {
+		if got := c.Apply(strings.ToLower(strings.ReplaceAll(term, "_", " "))); got != term {
+			t.Errorf("a term from the tail of the glossary was not corrected: got %q, want %q", got, term)
+		}
+	}
+}
+
+func TestDefaultVocabularyHasNoAmbiguousRewrites(t *testing.T) {
+	// Postgres is full of acronyms that are also ordinary words. If any of
+	// them could rewrite lower-case prose, a talk that mentions gin or toast
+	// acquires index internals it never had.
+	c := NewCanonicaliser(DefaultVocabulary)
+	for _, s := range []string{
+		"a gin and tonic, and some toast",
+		"the hot aisle was warm",
+		"I got the gist of it",
+		"we sat in the seg unit",
+		"the cube root of it",
+		"a bloom filter, they said",
+	} {
+		if got := c.Apply(s); got != s {
+			t.Errorf("Apply(%q) rewrote it to %q", s, got)
+		}
+	}
+}
+
+func TestParseVocabulary(t *testing.T) {
+	terms := ParseVocabulary("# a comment\n\npgEdge\n  Spock  \npgEdge\n# another\nWAL\n")
+	want := []string{"pgEdge", "Spock", "WAL"}
+	if len(terms) != len(want) {
+		t.Fatalf("got %v, want %v", terms, want)
+	}
+	for i := range want {
+		if terms[i] != want[i] {
+			t.Fatalf("got %v, want %v", terms, want)
 		}
 	}
 }

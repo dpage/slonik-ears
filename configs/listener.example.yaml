@@ -46,10 +46,11 @@ translate: false
 #   - "pgEdge"
 #   - "pg_stat_statements"
 #
-# Keep it to terms the model actually gets wrong. The prompt is capped at a
-# few hundred characters by the model itself, a long glossary crowds out the
-# recent transcript that keeps sentences flowing across chunks, and it gives
-# the model more to parrot back when handed a chunk with nothing in it.
+# Order matters. The model accepts only a few hundred characters of prompt, so
+# it is filled from the top of the list downwards; terms below the cut are
+# still corrected in the transcript, they just do not help the model hear them.
+# Put anything you particularly care about near the top. The listener logs
+# which way the split fell when it starts.
 # no_vocabulary: false
 
 # Segmentation. The defaults suit a conference talk; shorten silence_ms for a

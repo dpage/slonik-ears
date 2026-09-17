@@ -1,6 +1,7 @@
 package asr
 
 import (
+	_ "embed"
 	"fmt"
 	"strings"
 	"unicode"
@@ -18,34 +19,44 @@ import (
 // keeps sentences continuous across a chunk boundary.
 const PromptBudget = 600
 
+// defaultVocabularyFile is the built-in glossary, kept as a text file rather
+// than a Go slice because it is a long list that people will want to read,
+// copy and edit. It is embedded so the binary stays self-contained: a listener
+// copied onto a machine in a room has no repository to read it from.
+//
+//go:embed vocabulary.txt
+var defaultVocabularyFile string
+
 // DefaultVocabulary is the glossary the listener uses when nothing else is
 // configured. It exists because Whisper is confident and wrong about exactly
 // the words a Postgres audience notices: left to itself it writes "PG Admin"
 // for pgAdmin, "PG Start statements" for pg_stat_statements, "PG Dump Hall"
 // for pg_dumpall and "PG Edge" for pgEdge.
 //
-// Every entry earns its place by being something a model gets wrong and an
-// audience would spot. Ordinary English that Whisper already handles does not
-// belong here: a longer glossary is not a better one, because it crowds out
-// the transcript context and gives the model more to parrot back when it is
-// handed a chunk with nothing in it.
-var DefaultVocabulary = []string{
-	// This project, and the company whose conferences it was written for.
-	"Slonik Ears", "pgEdge", "Spock",
-	// Names and spellings, including the capitalisation people argue about.
-	"PostgreSQL", "Postgres", "psql", "pgAdmin", "libpq", "pgBouncer",
-	"pgvector", "PostGIS", "Patroni", "repmgr", "Citus", "TimescaleDB",
-	"pgBackRest", "etcd",
-	// Utilities and extensions, which is where it goes most wrong.
-	"pg_dump", "pg_dumpall", "pg_restore", "pg_basebackup", "pg_upgrade",
-	"pg_rewind", "pgbench", "pg_stat_statements", "pg_stat_activity",
-	"pg_stat_replication", "pg_hba.conf", "postgresql.conf",
-	// The vocabulary of a replication talk.
-	"logical replication", "streaming replication", "replication slot",
-	"publication", "subscription", "hot standby", "failover", "switchover",
-	"multi-master", "last-write-wins", "commit timestamp", "quorum",
-	// And of a performance one.
-	"autovacuum", "MVCC", "WAL", "JSONB", "partitioning", "foreign data wrapper",
+// It is far longer than the prompt can hold, which is deliberate rather than
+// careless. The list does two jobs with different appetites: the prompt takes
+// what fits from the top and helps the model hear those terms, whilst the
+// rewrite over the output has no such limit and covers every entry. So the
+// file is ordered, most valuable first, and the tail costs nothing but still
+// earns its keep.
+var DefaultVocabulary = ParseVocabulary(defaultVocabularyFile)
+
+// ParseVocabulary reads a glossary: one term per line, with blank lines and
+// # comments ignored so a list can explain itself, and duplicates dropped so
+// that a repeated term does not quietly consume prompt budget twice. Order is
+// preserved, because order is what decides who gets into the prompt.
+func ParseVocabulary(s string) []string {
+	var terms []string
+	seen := make(map[string]bool)
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || seen[line] {
+			continue
+		}
+		seen[line] = true
+		terms = append(terms, line)
+	}
+	return terms
 }
 
 // VocabularyPrompt renders a glossary into something a Whisper model will
@@ -98,6 +109,7 @@ func VocabularyPrompt(terms []string) (prompt string, dropped []string) {
 // Dump Hall" has an h in it that pg_dumpall does not, and inventing a fuzzy
 // match confident enough to bridge that gap would eventually rewrite something
 // the speaker really said. Those remain the prompt's job.
+//
 // There is one more distinction to draw, and getting it wrong is how a
 // spelling fixer starts damaging the transcript. A glossary holds two kinds of
 // entry: identifiers, whose spelling is deliberate and should be imposed
@@ -119,10 +131,17 @@ type Canonicaliser struct {
 	window int
 }
 
+// allCaps reports whether a term contains capital letters and no small ones,
+// which is how an acronym is told from a name.
+func allCaps(term string) bool {
+	return term != strings.ToLower(term) && term == strings.ToUpper(term)
+}
+
 // identifierLike reports whether a term's exact spelling is deliberate, rather
 // than ordinary English that happens to be worth prompting the model with. An
 // internal capital, an underscore, a digit, a dot, or being written entirely
 // in capitals all say "this is a name, spell it this way".
+//
 // It judges each word separately, so that an ordinary Title Case phrase such
 // as "Slonik Ears" is not mistaken for an identifier on account of the capital
 // letter starting its second word.
@@ -193,6 +212,16 @@ func (c *Canonicaliser) Apply(s string) string {
 			// Leave ordinary words as the model capitalised them unless it has
 			// visibly split an identifier apart.
 			if !identifierLike(canonical) && n == len(strings.Fields(canonical)) {
+				break
+			}
+			// An all-capitals term never rewrites text containing lower case.
+			// Postgres has a fine collection of acronyms that are also
+			// ordinary words, and without this rule a glossary listing GIN,
+			// HOT and TOAST would turn gin, hot and toast into index
+			// internals wherever anybody said them. Somebody who writes
+			// "M.V.C.C." still gets MVCC, because that has no lower case in
+			// it either.
+			if allCaps(canonical) && strings.ToUpper(strings.Join(phrase, " ")) != strings.Join(phrase, " ") {
 				break
 			}
 			// Keep whatever punctuation surrounded the phrase: an opening
