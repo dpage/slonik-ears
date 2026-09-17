@@ -106,6 +106,11 @@ export function transcriptURL(id: string, format: 'txt' | 'json' | 'srt' | 'vtt'
   return withKey(`/api/rooms/${encodeURIComponent(id)}/transcript?format=${format}`)
 }
 
-export function qrURL(id: string, size = 420): string {
-  return `/api/rooms/${encodeURIComponent(id)}/qr.png?size=${size}`
+/**
+ * attempt busts the browser's cache of a failed request. Without it a retry
+ * can be answered from cache with the same failure, which is no retry at all.
+ */
+export function qrURL(id: string, size = 420, attempt = 0): string {
+  const base = `/api/rooms/${encodeURIComponent(id)}/qr.png?size=${size}`
+  return attempt > 0 ? `${base}&retry=${attempt}` : base
 }

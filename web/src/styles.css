@@ -641,10 +641,12 @@ code {
 }
 
 .stage-exit {
-  position: absolute;
-  top: 2vh;
-  right: 3vw;
+  /* Laid out in the header row rather than floated over the top right corner.
+     Absolutely positioned there it was drawn on top of the speaker's name and
+     the live badge, which already own that corner, and the collision was only
+     hidden by the idle timer fading this out a few seconds later. */
   font-size: 0.8rem;
+  white-space: nowrap;
   opacity: 1;
   transition: opacity 0.4s ease;
 }

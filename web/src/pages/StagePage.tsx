@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { qrURL } from '../api'
 import ConnectionBadge from '../components/ConnectionBadge'
@@ -17,6 +17,8 @@ export default function StagePage() {
   const [params] = useSearchParams()
   const { room, segments, partial, connection } = useRoomStream(roomId)
   const [idle, setIdle] = useState(false)
+  const [qrAttempt, setQrAttempt] = useState(0)
+  const qrRetry = useRef<number | undefined>(undefined)
 
   const lineCount = clamp(Number(params.get('lines') ?? 5), 2, 12)
   const showQR = params.get('qr') !== '0'
@@ -39,6 +41,24 @@ export default function StagePage() {
     }
   }, [])
 
+  // Re-request the code when the stream reconnects, since a drop and recovery
+  // is the likeliest reason it failed in the first place.
+  useEffect(() => {
+    if (connection === 'live') setQrAttempt((n) => n + 1)
+  }, [connection])
+
+  useEffect(() => () => window.clearTimeout(qrRetry.current), [])
+
+  const retryQR = () => {
+    // Back off to a few seconds and stay there: a stage screen is left running
+    // for hours, and a tight retry loop against a server that is down is both
+    // useless and noisy.
+    window.clearTimeout(qrRetry.current)
+    qrRetry.current = window.setTimeout(() => setQrAttempt((n) => n + 1), 5000)
+  }
+
+  const qrLoaded = () => window.clearTimeout(qrRetry.current)
+
   const visible = segments.slice(-lineCount)
 
   return (
@@ -48,6 +68,16 @@ export default function StagePage() {
         <div className="stage-meta">
           {room?.speaker && <span>{room.speaker}</span>}
           <ConnectionBadge state={connection} roomLive={room?.live} />
+          {/*
+            In the header row rather than floated over the top right corner,
+            which is where the speaker's name and the live badge already are:
+            the two were drawn on top of one another until the idle timer faded
+            this one out. Hiding it still only changes its opacity, so the row
+            does not reflow every time somebody nudges the laptop.
+          */}
+          <Link to={`/r/${roomId}`} className="stage-exit">
+            Exit stage view
+          </Link>
         </div>
       </header>
 
@@ -71,14 +101,24 @@ export default function StagePage() {
 
       {showQR && roomId && (
         <aside className="stage-qr">
-          <img src={qrURL(roomId, 260)} alt="" />
+          {/*
+            A broken image is never retried by the browser, so a stage display
+            that happened to load whilst the server was restarting kept an
+            empty box where the code should be for the rest of the talk, and
+            nobody in the room could scan anything. Ask again, backing off, and
+            once more whenever the stream reconnects: that is the moment the
+            server is known to be answering again.
+          */}
+          <img
+            key={qrAttempt}
+            src={qrURL(roomId, 260, qrAttempt)}
+            alt=""
+            onError={retryQR}
+            onLoad={qrLoaded}
+          />
           <p>Follow along on your phone</p>
         </aside>
       )}
-
-      <Link to={`/r/${roomId}`} className="stage-exit">
-        Exit stage view
-      </Link>
     </div>
   )
 }
