@@ -78,6 +78,12 @@ type Room struct {
 	// stale listener's writes can be rejected.
 	publisherEpoch int64
 	publisherConn  bool
+	// pinned* records that a person set this field through the admin API, so
+	// that a reconnecting listener repeating its start-up flags cannot quietly
+	// undo them.
+	pinnedTitle   bool
+	pinnedTrack   bool
+	pinnedSpeaker bool
 }
 
 // Subscriber is a viewer's outbound message queue.
@@ -284,13 +290,18 @@ func (r *Room) AttachPublisher(meta protocol.Room) int64 {
 	r.publisherEpoch++
 	epoch := r.publisherEpoch
 	r.publisherConn = true
-	if meta.Title != "" {
+	// A listener describes itself on every hello, which is how a room gets its
+	// title in the first place. It must not, however, undo an organiser who has
+	// since retitled the room for the next speaker: that person is holding the
+	// more recent information, and the listener is only repeating the flags it
+	// happened to be started with.
+	if meta.Title != "" && !r.pinnedTitle {
 		r.info.Title = meta.Title
 	}
-	if meta.Track != "" {
+	if meta.Track != "" && !r.pinnedTrack {
 		r.info.Track = meta.Track
 	}
-	if meta.Speaker != "" {
+	if meta.Speaker != "" && !r.pinnedSpeaker {
 		r.info.Speaker = meta.Speaker
 	}
 	if meta.Language != "" {
@@ -324,15 +335,34 @@ func (r *Room) DetachPublisher(epoch int64) {
 
 // SetMetadata updates the room description from config or the admin API.
 func (r *Room) SetMetadata(meta protocol.Room) {
+	r.setMetadata(meta, false)
+}
+
+// SetOperatorMetadata is the same, but records that a person set these fields
+// deliberately, so a reconnecting listener does not undo their work.
+//
+// Without this the organiser's page was of very little use: a listener sends
+// its --title and --speaker in every hello, so retitling a room for the next
+// speaker lasted exactly until the machine at the back of the room reconnected
+// — a restart, a dropped network, a lid closing — and then silently reverted
+// to whatever that listener was started with.
+func (r *Room) SetOperatorMetadata(meta protocol.Room) {
+	r.setMetadata(meta, true)
+}
+
+func (r *Room) setMetadata(meta protocol.Room, byOperator bool) {
 	r.mu.Lock()
 	if meta.Title != "" {
 		r.info.Title = meta.Title
+		r.pinnedTitle = r.pinnedTitle || byOperator
 	}
 	if meta.Track != "" {
 		r.info.Track = meta.Track
+		r.pinnedTrack = r.pinnedTrack || byOperator
 	}
 	if meta.Speaker != "" {
 		r.info.Speaker = meta.Speaker
+		r.pinnedSpeaker = r.pinnedSpeaker || byOperator
 	}
 	if meta.Language != "" {
 		r.info.Language = meta.Language

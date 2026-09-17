@@ -345,7 +345,7 @@ func (s *Server) handleAdminUpsertRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	room := s.hub.Ensure(id)
-	room.SetMetadata(meta)
+	room.SetOperatorMetadata(meta)
 	writeJSON(w, http.StatusOK, map[string]any{"room": room.Info()})
 }
 

@@ -87,3 +87,44 @@ func TestAnOrdinaryResumeIsNotTreatedAsAReset(t *testing.T) {
 		sub.Close()
 	}
 }
+
+func TestAnOperatorsRetitleSurvivesAListenerReconnecting(t *testing.T) {
+	// A listener repeats its --title and --speaker in every hello. Retitling a
+	// room for the next speaker used to last only until the machine at the back
+	// of the room reconnected, at which point it silently reverted.
+	h := hub.New(hub.Options{History: 10})
+	room := h.Ensure("main-hall")
+	room.AttachPublisher(protocol.Room{Title: "Main Hall", Speaker: "First Speaker", Track: "Track A"})
+
+	room.SetOperatorMetadata(protocol.Room{Title: "Keynote", Speaker: "Second Speaker"})
+
+	// The listener drops and comes back, still configured with the old flags.
+	room.AttachPublisher(protocol.Room{Title: "Main Hall", Speaker: "First Speaker", Track: "Track A"})
+
+	got := room.Info()
+	if got.Title != "Keynote" {
+		t.Errorf("title reverted to %q", got.Title)
+	}
+	if got.Speaker != "Second Speaker" {
+		t.Errorf("speaker reverted to %q", got.Speaker)
+	}
+	// Track was never touched by the operator, so the listener still owns it.
+	if got.Track != "Track A" {
+		t.Errorf("track is %q, want the listener's value", got.Track)
+	}
+}
+
+func TestAListenerStillNamesARoomNobodyHasEdited(t *testing.T) {
+	h := hub.New(hub.Options{History: 10})
+	room := h.Ensure("main-hall")
+	room.AttachPublisher(protocol.Room{Title: "Main Hall", Speaker: "First Speaker"})
+	if got := room.Info(); got.Title != "Main Hall" || got.Speaker != "First Speaker" {
+		t.Fatalf("a listener should name an unedited room: %+v", got)
+	}
+	// And a later listener with different flags still wins, until a person
+	// intervenes.
+	room.AttachPublisher(protocol.Room{Title: "Second Hall", Speaker: "Someone Else"})
+	if got := room.Info(); got.Title != "Second Hall" || got.Speaker != "Someone Else" {
+		t.Errorf("an unpinned room should follow its listener: %+v", got)
+	}
+}
