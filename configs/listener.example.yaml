@@ -28,6 +28,31 @@ model: ""
 api_key: ""
 translate: false
 
+# The glossary handed to the model so it spells your jargon the way the
+# audience does. Left alone, the built-in Postgres list applies, which is what
+# turns "PG Admin" into pgAdmin, "PG Start statements" into pg_stat_statements
+# and "PG Dump Hall" into pg_dumpall.
+#
+# The easiest way to extend it is to start from a copy:
+#
+#   ears-listener --print-vocabulary > vocabulary.txt
+#
+# then edit that and point vocabulary_file at it. Whichever of these you use
+# REPLACES the built-in list rather than adding to it, so that the effective
+# glossary is always exactly what --print-vocabulary shows.
+#
+# vocabulary_file: "vocabulary.txt"
+# vocabulary:
+#   - "pgEdge"
+#   - "pg_stat_statements"
+#
+# Order matters. The model accepts only a few hundred characters of prompt, so
+# it is filled from the top of the list downwards; terms below the cut are
+# still corrected in the transcript, they just do not help the model hear them.
+# Put anything you particularly care about near the top. The listener logs
+# which way the split fell when it starts.
+# no_vocabulary: false
+
 # Segmentation. The defaults suit a conference talk; shorten silence_ms for a
 # snappier feel at the cost of more, shorter chunks (and slightly worse
 # accuracy, since the model gets less context per chunk).

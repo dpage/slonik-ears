@@ -296,6 +296,64 @@ transcribing.
 `deploy/`. It must be an agent rather than a daemon, because microphone access
 belongs to a logged-in session.
 
+## Teaching it your jargon
+
+Whisper is confident and wrong about exactly the words a technical audience
+notices. Left to itself it writes "PG Admin" for pgAdmin, "PG Start statements"
+for pg_stat_statements, "PG Dump Hall" for pg_dumpall and "PG Edge" for
+pgEdge, which is the sort of thing that makes a transcript look unreliable even
+where it is accurate.
+
+The listener carries a glossary to deal with it, used in two ways: the terms go
+to the model as context, which measurably helps it *hear* the right words, and
+they are also applied to the output afterwards, which makes it *spell* them
+consistently. Both are needed, because prompting alone is unreliable in an
+interesting way: one glossary fixed "last right wins" into "last-write-wins"
+whilst rendering pgEdge as "-pgedge", and a shorter one got pgEdge right and
+lost the other. The rewrite is exact rather than fuzzy, so it corrects casing
+and spacing ("PG Edge", "pg edge", "-pgedge" all become pgEdge) and leaves
+alone anything that merely sounds similar.
+
+A Postgres glossary is built in, so the default behaviour is usually what you
+want. To see it, change it, or replace it:
+
+```bash
+ears-listener --print-vocabulary > vocabulary.txt   # start from the built-in list
+$EDITOR vocabulary.txt                              # one term per line, # for comments
+ears-listener --room main-hall --vocabulary vocabulary.txt ...
+```
+
+The same thing can live in the config file as `vocabulary_file`, or inline as
+`vocabulary:`. Any of those replaces the built-in list rather than adding to
+it, so the glossary in force is always exactly what `--print-vocabulary`
+prints. `--no-vocabulary` turns it off for an event that is not about
+databases.
+
+**Order matters, and the list is longer than the prompt.** The built-in
+glossary runs to several hundred terms, covering the client programs, the
+system catalogues and statistics views, the common extensions, the pooling and
+high-availability tooling, the configuration parameters people say out loud and
+a good deal of the vocabulary of a replication or performance talk. The model
+will only accept a few hundred characters of prompt, though, so the prompt is
+filled from the top of the list downwards and the rest is corrected in the
+output only. That is why the list is ordered rather than alphabetical: the
+terms said constantly and mangled reliably are at the top. The listener says
+which way the split fell when it starts:
+
+```
+msg="glossary is longer than the model's prompt allows" in_prompt=48 corrected_only_afterwards=299
+```
+
+If something of yours is coming out *misheard* rather than merely misspelt,
+move it nearer the top of your own copy. If it is only misspelt, its position
+does not matter.
+
+Ordinary words are left to the model's own capitalisation, so "logical
+replication" in the glossary cannot strip the capital off a sentence beginning
+with it, and terms written in capitals never rewrite lower-case prose, which is
+what stops a glossary containing GIN, HOT and TOAST from turning gin, hot and
+toast into index internals.
+
 ## Configuration
 
 Both programs take flags, an optional YAML file, and environment variables, in

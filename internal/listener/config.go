@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dpage/slonik-ears/internal/asr"
 	"github.com/dpage/slonik-ears/internal/audio"
 	"github.com/dpage/slonik-ears/internal/protocol"
 	"gopkg.in/yaml.v3"
@@ -33,6 +34,18 @@ type Config struct {
 	File   string `yaml:"file"`
 	Loop   bool   `yaml:"loop"`
 	Fast   bool   `yaml:"fast"`
+
+	// Vocabulary is the glossary fed to the model so that it spells the
+	// jargon the way the audience does. Setting it replaces the built-in
+	// Postgres list rather than adding to it; start from
+	// `ears-listener --print-vocabulary` if you want to extend it.
+	Vocabulary []string `yaml:"vocabulary"`
+	// VocabularyFile is the same thing kept in its own file, one term per
+	// line, which is easier to edit and to share between rooms.
+	VocabularyFile string `yaml:"vocabulary_file"`
+	// NoVocabulary sends no glossary at all, for an event that is not about
+	// databases.
+	NoVocabulary bool `yaml:"no_vocabulary"`
 
 	// How it gets transcribed.
 	Whisper    string `yaml:"whisper_url"`
@@ -102,6 +115,9 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.WhisperVAD, "whisper-vad", c.WhisperVAD, "ask the whisper server to apply its own VAD (needs a VAD model loaded there)")
 	fs.BoolVar(&c.Mock, "mock", c.Mock, "use the mock transcriber: invents text, needs no model")
 
+	fs.StringVar(&c.VocabularyFile, "vocabulary", c.VocabularyFile, "file of terms the model should spell correctly, one per line (replaces the built-in Postgres glossary)")
+	fs.BoolVar(&c.NoVocabulary, "no-vocabulary", c.NoVocabulary, "send no glossary to the model at all")
+
 	fs.IntVar(&c.SilenceMs, "silence-ms", c.SilenceMs, "silence that ends an utterance")
 	fs.IntVar(&c.MinUtteranceMs, "min-utterance-ms", c.MinUtteranceMs, "ignore utterances shorter than this")
 	fs.IntVar(&c.MaxUtteranceMs, "max-utterance-ms", c.MaxUtteranceMs, "commit an utterance at least this often")
@@ -161,6 +177,8 @@ func (c *Config) LoadFile(path string, fs *flag.FlagSet) error {
 	overlay("translate", func() { c.Translate = cmdline.Translate })
 	overlay("whisper-vad", func() { c.WhisperVAD = cmdline.WhisperVAD })
 	overlay("mock", func() { c.Mock = cmdline.Mock })
+	overlay("vocabulary", func() { c.VocabularyFile = cmdline.VocabularyFile })
+	overlay("no-vocabulary", func() { c.NoVocabulary = cmdline.NoVocabulary })
 	overlay("silence-ms", func() { c.SilenceMs = cmdline.SilenceMs })
 	overlay("min-utterance-ms", func() { c.MinUtteranceMs = cmdline.MinUtteranceMs })
 	overlay("max-utterance-ms", func() { c.MaxUtteranceMs = cmdline.MaxUtteranceMs })
@@ -227,8 +245,51 @@ func (c Config) Validate(dryRun bool) error {
 	return nil
 }
 
-// EngineConfig converts to the engine's configuration.
-func (c Config) EngineConfig(log *slog.Logger) EngineConfig {
+// ResolveVocabulary works out the glossary this listener will actually send,
+// in order of precedence: nothing at all if it has been turned off, the
+// contents of a vocabulary file if one is named, an inline list from the
+// config file if there is one, and otherwise the built-in Postgres glossary.
+//
+// Each of these replaces rather than extends the one below it, which is the
+// behaviour that makes "why is my term still spelt wrong" answerable: the
+// effective list is whatever `--print-vocabulary` shows, with no merging to
+// reason about. Extending the default means starting from a copy of it, which
+// is what that flag is for.
+func (c Config) ResolveVocabulary() ([]string, error) {
+	switch {
+	case c.NoVocabulary:
+		return nil, nil
+	case c.VocabularyFile != "":
+		terms, err := readVocabularyFile(c.VocabularyFile)
+		if err != nil {
+			return nil, err
+		}
+		return terms, nil
+	case len(c.Vocabulary) > 0:
+		return c.Vocabulary, nil
+	default:
+		return asr.DefaultVocabulary, nil
+	}
+}
+
+// readVocabularyFile reads one term per line, ignoring blank lines and
+// comments so that a glossary can explain itself.
+func readVocabularyFile(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read vocabulary: %w", err)
+	}
+	terms := asr.ParseVocabulary(string(data))
+	if len(terms) == 0 {
+		return nil, fmt.Errorf("vocabulary file %s has no terms in it", path)
+	}
+	return terms, nil
+}
+
+// EngineConfig converts to the engine's configuration. The glossary is passed
+// in already resolved, because reading it can fail on a bad file and that is
+// better reported at startup than here.
+func (c Config) EngineConfig(log *slog.Logger, vocabulary []string) EngineConfig {
 	partial := c.PartialMs
 	if c.NoPartials {
 		partial = 0
@@ -244,6 +305,7 @@ func (c Config) EngineConfig(log *slog.Logger) EngineConfig {
 		},
 		Language:       c.Language,
 		Translate:      c.Translate,
+		Vocabulary:     vocabulary,
 		PartialTimeout: time.Duration(c.PartialTimeoutSec) * time.Second,
 		FinalTimeout:   time.Duration(c.FinalTimeoutSec) * time.Second,
 		TranscriptFile: c.Transcript,

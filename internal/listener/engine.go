@@ -43,6 +43,11 @@ type EngineConfig struct {
 	// model as context. Whisper caps its prompt, and too much of it makes the
 	// model repeat itself, so keep this modest.
 	PromptWords int
+	// Vocabulary is the glossary of terms the audience would notice getting
+	// mangled. It is used twice: as a prompt, which helps the model hear the
+	// right words, and as a rewrite over the output, which makes it spell them
+	// consistently. Neither alone is sufficient; see asr.Canonicaliser.
+	Vocabulary []string
 	// PartialTimeout bounds an interim transcription; a partial that takes
 	// longer than this is not worth waiting for.
 	PartialTimeout time.Duration
@@ -79,6 +84,11 @@ type Engine struct {
 	chunk  *audio.Chunker
 	jsonl  *os.File
 	jsonMu sync.Mutex
+
+	// vocabPrompt is the rendered glossary, and canon the rewrite built from
+	// the same terms. Both are fixed for the life of the engine.
+	vocabPrompt string
+	canon       *asr.Canonicaliser
 
 	// work queue, drained by a single worker so ordering is guaranteed and
 	// the model is never asked to do two things at once.
@@ -125,6 +135,22 @@ func NewEngine(cfg EngineConfig, src audio.Source, transcriber asr.Transcriber, 
 		pub:   pub,
 		chunk: audio.NewChunker(cfg.Chunker),
 		wake:  make(chan struct{}, 1),
+		canon: asr.NewCanonicaliser(cfg.Vocabulary),
+	}
+
+	prompt, dropped := asr.VocabularyPrompt(cfg.Vocabulary)
+	e.vocabPrompt = prompt
+	if len(dropped) > 0 {
+		// Not a warning: the built-in glossary is deliberately longer than the
+		// prompt can hold, because the two uses have different appetites. The
+		// prompt takes what fits from the top of the list and helps the model
+		// hear those terms; the rewrite covers all of them regardless. Worth
+		// saying plainly, though, so that somebody whose term is coming out
+		// misheard rather than misspelt can move it up the list.
+		e.log.Info("glossary is longer than the model's prompt allows",
+			"in_prompt", len(cfg.Vocabulary)-len(dropped),
+			"corrected_only_afterwards", len(dropped),
+			"budget_chars", asr.PromptBudget)
 	}
 
 	if cfg.TranscriptFile != "" {
@@ -430,7 +456,12 @@ func (e *Engine) transcribe(ctx context.Context, req audio.Request) {
 	}
 	e.setError("")
 
-	text := strings.TrimSpace(res.Text)
+	// Rewrite before anything else sees the text, so the preview, the
+	// committed segment, the prompt fed back to the model and the local
+	// transcript file all agree on how the jargon is spelt. A partial that
+	// says "PG Edge" and a final that says "pgEdge" reads, to an audience, as
+	// the thing changing its mind.
+	text := e.canon.Apply(strings.TrimSpace(res.Text))
 	if text == "" {
 		// Clear the preview whichever kind this was. A final that produces no
 		// text used to return here without touching the partial, which left
@@ -559,8 +590,17 @@ func (e *Engine) pushPrompt(text string) {
 
 func (e *Engine) currentPrompt() string {
 	e.stateMu.Lock()
-	defer e.stateMu.Unlock()
-	return e.prompt
+	tail := e.prompt
+	e.stateMu.Unlock()
+
+	switch {
+	case e.vocabPrompt == "":
+		return tail
+	case tail == "":
+		return e.vocabPrompt
+	default:
+		return e.vocabPrompt + " " + tail
+	}
 }
 
 func kindName(k audio.RequestKind) string {
