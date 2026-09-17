@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/dpage/slonik-ears/internal/server"
+	"github.com/dpage/slonik-ears/internal/signals"
 	"github.com/dpage/slonik-ears/internal/store"
 	"github.com/dpage/slonik-ears/internal/version"
 )
@@ -111,6 +112,9 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// The same escape hatch as the listener: the first interrupt drains
+	// connections, a second one leaves immediately.
+	defer signals.ExitOnSecondInterrupt(os.Stderr, "ears-server: interrupted again — exiting now.")()
 
 	select {
 	case err := <-errCh:

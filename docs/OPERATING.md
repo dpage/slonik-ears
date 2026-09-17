@@ -93,3 +93,5 @@ being told that it is a machine transcript with the errors that implies.
 | Occasional "Thank you." or "[BLANK_AUDIO]" | Whisper hallucinating on silence; the cleaner catches the common cases, and a better audio feed catches the rest |
 | Attendees cannot reach the server | client isolation on the venue network: this is what the hosted relay is for |
 | Room shows live but nothing appears after a restart | a second listener took over the room; the first is told and stops |
+| Listener logs "publisher disconnected ... connection refused" on a loop | wrong `--server` address, or the relay is not running. The listener keeps transcribing and buffers the text, so fix the address and restart it — nothing said so far is lost if `--transcript` was set |
+| Ctrl-C does not seem to stop the listener | it is finishing the last transcription, or waiting on the relay. It says which. Press Ctrl-C again to exit immediately |
