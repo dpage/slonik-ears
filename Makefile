@@ -35,9 +35,21 @@ build: web server listener
 web:
 	cd web && $(NPM) ci --no-audit --no-fund && $(NPM) run build
 
-## server: build the relay server (embeds whatever is in web/dist)
+## server: build the relay server alone (embeds whatever is already in web/dist)
+#
+# This deliberately does not depend on `web`, so the server can be built on a
+# machine with no npm. The price is that it embeds a placeholder page unless
+# the web app has been built at least once, so it says so rather than leaving
+# you to discover it in a browser.
 server:
 	CGO_ENABLED=0 $(GO) build -ldflags "$(LDFLAGS)" -o $(BIN)/ears-server ./cmd/ears-server
+	@if [ ! -f web/dist/index.html ]; then \
+		echo; \
+		echo "  Note: web/dist/index.html does not exist, so this binary serves a"; \
+		echo "  placeholder page instead of the attendee app. Run 'make web' (or"; \
+		echo "  just 'make build') to include it."; \
+		echo; \
+	fi
 
 ## listener: build the room listener (needs cgo for audio capture)
 listener:
@@ -83,7 +95,7 @@ vuln:
 	cd web && $(NPM) audit --omit=dev --audit-level=high
 
 ## smoke: drive the attendee views in a real browser against a running demo
-smoke: server
+smoke: web server
 	@EARS_PUBLISH_TOKEN=smoke-token ./$(BIN)/ears-server --addr 127.0.0.1:8099 & \
 	SERVER=$$!; \
 	sleep 1; \
@@ -106,7 +118,7 @@ tidy:
 	$(GO) mod tidy
 
 ## demo: a server plus a fake listener, so you can see the whole thing work
-demo: server
+demo: web server
 	@echo "Starting a demo on http://localhost:8080 — press Ctrl-C to stop."
 	@EARS_PUBLISH_TOKEN=demo-token EARS_EVENT_NAME="Slonik Ears demo" \
 		./$(BIN)/ears-server --addr :8080 & \
@@ -117,7 +129,7 @@ demo: server
 	kill $$SERVER
 
 ## run-server: run the server with transcripts persisted to ./data
-run-server: server
+run-server: web server
 	./$(BIN)/ears-server --data-dir ./data
 
 ## run-listener: run a listener against a local server and whisper-server
