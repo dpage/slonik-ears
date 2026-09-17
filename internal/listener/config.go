@@ -56,6 +56,7 @@ type Config struct {
 
 	// Housekeeping.
 	Transcript string `yaml:"transcript_file"`
+	Record     string `yaml:"record_file"`
 	LogLevel   string `yaml:"log_level"`
 }
 
@@ -112,6 +113,7 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.FinalTimeoutSec, "final-timeout", c.FinalTimeoutSec, "seconds to wait for a committed transcription")
 
 	fs.StringVar(&c.Transcript, "transcript", c.Transcript, "append committed segments to this JSONL file as a local backup")
+	fs.StringVar(&c.Record, "record", c.Record, "record the captured audio to this WAV file for debugging, and replay it later with --file")
 	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "log level: debug, info, warn or error")
 }
 
@@ -168,6 +170,7 @@ func (c *Config) LoadFile(path string, fs *flag.FlagSet) error {
 	overlay("partial-timeout", func() { c.PartialTimeoutSec = cmdline.PartialTimeoutSec })
 	overlay("final-timeout", func() { c.FinalTimeoutSec = cmdline.FinalTimeoutSec })
 	overlay("transcript", func() { c.Transcript = cmdline.Transcript })
+	overlay("record", func() { c.Record = cmdline.Record })
 	overlay("log-level", func() { c.LogLevel = cmdline.LogLevel })
 	return nil
 }
@@ -217,6 +220,9 @@ func (c Config) Validate(dryRun bool) error {
 	}
 	if c.File != "" && c.Device != "" {
 		return fmt.Errorf("--file and --device are mutually exclusive")
+	}
+	if c.Record != "" && c.File != "" {
+		return fmt.Errorf("--record and --file are mutually exclusive: the audio is already in a file")
 	}
 	return nil
 }

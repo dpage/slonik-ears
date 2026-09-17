@@ -175,7 +175,19 @@ func openSource(cfg listener.Config, log *slog.Logger) (audio.Source, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w\n\nOn macOS, the first run needs microphone permission: the prompt appears for\nthe application running this command (Terminal, iTerm, or the binary itself).\nGrant it under System Settings > Privacy & Security > Microphone, then try again.\nUse --list-devices to see what is available", err)
 	}
-	return mic, nil
+	if cfg.Record == "" {
+		return mic, nil
+	}
+	rec, err := audio.RecordTo(mic, cfg.Record)
+	if err != nil {
+		_ = mic.Close()
+		return nil, err
+	}
+	// Loudly, and not at debug level: whoever starts this should be in no
+	// doubt that the room is being recorded.
+	log.Warn("recording the captured audio to disk: this keeps everything said near the microphone",
+		"file", cfg.Record)
+	return rec, nil
 }
 
 func newTranscriber(cfg listener.Config, log *slog.Logger) (asr.Transcriber, error) {

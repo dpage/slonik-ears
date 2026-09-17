@@ -95,3 +95,38 @@ being told that it is a machine transcript with the errors that implies.
 | Room shows live but nothing appears after a restart | a second listener took over the room; the first is told and stops |
 | Listener logs "publisher disconnected ... connection refused" on a loop | wrong `--server` address, or the relay is not running. The listener keeps transcribing and buffers the text, so fix the address and restart it — nothing said so far is lost if `--transcript` was set |
 | Ctrl-C does not seem to stop the listener | it is finishing the last transcription, or waiting on the relay. It says which. Press Ctrl-C again to exit immediately |
+| Sentences arrive chopped in half, or a long one stops partway through | the speaker is too quiet for the detector. Run with `--log-level debug` and compare `level` against `start_threshold` in the heartbeat: speech should peak at several times the threshold rather than brushing against it. Raise the gain on the interface first, and only then reach for the detector's settings |
+
+## Tuning segmentation for a particular room
+
+Where a sentence ends is decided by a state machine over the audio, so the only
+honest way to tune it is against a recording of the room it will be used in.
+The listener will make you one:
+
+```bash
+ears-listener --room main-hall --record /tmp/room.wav ...   # for debugging
+```
+
+That recording can then be replayed as often as you like without anybody having
+to say anything again, either through the whole pipeline:
+
+```bash
+ears-listener --room test --dry-run --file /tmp/room.wav --fast --no-partials
+```
+
+or through the segmenter alone, which sweeps the detector's settings and
+reports how much of the recording each one would have sent to the model:
+
+```bash
+EARS_TUNE_WAV=/tmp/room.wav go test ./internal/audio -run Segmentation -v
+```
+
+Aim for committed audio a little above the amount of real speech in the
+recording. Well under it means sentences are being lost; well over it means
+silence is being sent to the model, and silence is what Whisper hallucinates
+over.
+
+A recording captures every word said near the microphone, by anybody. Whether
+to make one at a real event is a question for whoever is running the event
+rather than for whoever is holding the laptop, and the file belongs nowhere
+near a git repository.

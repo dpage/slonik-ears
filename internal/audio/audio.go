@@ -27,6 +27,14 @@ type Source interface {
 	Close() error
 }
 
+// Dropper is implemented by sources that can fall behind their consumer. A
+// live microphone can, because the device carries on producing audio whether
+// or not anything is reading it; a file replayed from disk cannot. Anything
+// other than zero means audio was discarded before it was ever transcribed.
+type Dropper interface {
+	Dropped() int64
+}
+
 // Device is a capture device offered by the host.
 type Device struct {
 	ID      string

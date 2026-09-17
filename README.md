@@ -378,6 +378,11 @@ A few decisions worth knowing about:
   better on names and jargon when it knows what was just said.
 * **Segments are queued locally when the network drops**, written to disk if
   `--transcript` is set, and flushed before shutdown.
+* **The voice detector adapts downwards readily and upwards reluctantly**, and
+  not at all until the room has been quiet for half a second. The quiet frames
+  within a sentence are not silence, and letting them into the estimate lets a
+  speaker gradually talk themselves into being ignored. `docs/OPERATING.md`
+  covers tuning it against a recording of the room you will actually use.
 
 ## Development
 

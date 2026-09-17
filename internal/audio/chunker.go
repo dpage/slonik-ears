@@ -112,6 +112,22 @@ func NewChunker(cfg ChunkerConfig) *Chunker {
 // Speaking reports whether the chunker currently believes somebody is talking.
 func (c *Chunker) Speaking() bool { return c.speaking }
 
+// NoiseFloor is the detector's current estimate of the room.
+func (c *Chunker) NoiseFloor() float64 { return c.vad.NoiseFloor() }
+
+// Thresholds are the levels speech must currently reach to start and to carry
+// on, which is what a debug log needs in order to explain a silent transcript.
+func (c *Chunker) Thresholds() (start, stop float64) { return c.vad.Thresholds() }
+
+// UtteranceMs is how much audio is held in the utterance being built, and
+// VoicedMs how much of it the detector counted as speech. A commit is refused
+// when VoicedMs falls below MinUtteranceMs, so logging both explains a chunk
+// that was captured and then quietly dropped.
+func (c *Chunker) UtteranceMs() int64 { return DurationMs(len(c.utterance)) }
+
+// VoicedMs is the voiced portion of the utterance being built.
+func (c *Chunker) VoicedMs() int64 { return c.voicedMs }
+
 // Elapsed is the session time consumed so far.
 func (c *Chunker) Elapsed() time.Duration { return time.Duration(c.elapsedMs) * time.Millisecond }
 

@@ -13,30 +13,15 @@ func EncodeWAV(pcm []float32, sampleRate int) []byte {
 	if sampleRate <= 0 {
 		sampleRate = SampleRate
 	}
-	const (
-		numChannels   = 1
-		bitsPerSample = 16
-	)
 	dataLen := len(pcm) * 2
 	buf := make([]byte, 0, 44+dataLen)
+	buf = append(buf, wavHeader(sampleRate, dataLen)...)
+	return append(buf, pcmBytes(pcm)...)
+}
 
-	put32 := func(v uint32) { buf = binary.LittleEndian.AppendUint32(buf, v) }
-	put16 := func(v uint16) { buf = binary.LittleEndian.AppendUint16(buf, v) }
-
-	buf = append(buf, "RIFF"...)
-	put32(uint32(36 + dataLen))
-	buf = append(buf, "WAVE"...)
-	buf = append(buf, "fmt "...)
-	put32(16)                                                   // PCM chunk size
-	put16(1)                                                    // format: PCM
-	put16(numChannels)                                          //
-	put32(uint32(sampleRate))                                   //
-	put32(uint32(sampleRate * numChannels * bitsPerSample / 8)) // byte rate
-	put16(numChannels * bitsPerSample / 8)                      // block align
-	put16(bitsPerSample)                                        //
-	buf = append(buf, "data"...)
-	put32(uint32(dataLen))
-
+// pcmBytes converts float32 samples to little-endian 16-bit PCM.
+func pcmBytes(pcm []float32) []byte {
+	out := make([]byte, 0, len(pcm)*2)
 	for _, s := range pcm {
 		v := s
 		if v > 1 {
@@ -44,8 +29,33 @@ func EncodeWAV(pcm []float32, sampleRate int) []byte {
 		} else if v < -1 {
 			v = -1
 		}
-		put16(uint16(int16(math.Round(float64(v) * 32767))))
+		out = binary.LittleEndian.AppendUint16(out, uint16(int16(math.Round(float64(v)*32767))))
 	}
+	return out
+}
+
+// wavHeader renders the 44-byte RIFF header for a mono 16-bit stream. When
+// dataLen is not yet known (a recording still in progress) the size fields are
+// patched on close.
+func wavHeader(sampleRate, dataLen int) []byte {
+	const bitsPerSample = 16
+	buf := make([]byte, 0, 44)
+	put32 := func(v uint32) { buf = binary.LittleEndian.AppendUint32(buf, v) }
+	put16 := func(v uint16) { buf = binary.LittleEndian.AppendUint16(buf, v) }
+
+	buf = append(buf, "RIFF"...)
+	put32(uint32(36 + dataLen))
+	buf = append(buf, "WAVE"...)
+	buf = append(buf, "fmt "...)
+	put32(16)
+	put16(1) // PCM
+	put16(1) // mono
+	put32(uint32(sampleRate))
+	put32(uint32(sampleRate * bitsPerSample / 8))
+	put16(bitsPerSample / 8)
+	put16(bitsPerSample)
+	buf = append(buf, "data"...)
+	put32(uint32(dataLen))
 	return buf
 }
 
