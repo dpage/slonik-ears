@@ -21,6 +21,7 @@ import (
 	"github.com/dpage/slonik-ears/internal/audio"
 	"github.com/dpage/slonik-ears/internal/listener"
 	"github.com/dpage/slonik-ears/internal/protocol"
+	"github.com/dpage/slonik-ears/internal/signals"
 	"github.com/dpage/slonik-ears/internal/version"
 )
 
@@ -82,6 +83,8 @@ func run() error {
 	// ---- publisher
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	defer signals.ExitOnSecondInterrupt(os.Stderr,
+		"ears-listener: interrupted again — exiting now. Any undelivered transcript is in the --transcript file, if one was set.")()
 
 	var (
 		pub        listener.Publisher
@@ -136,8 +139,19 @@ func run() error {
 	runErr := engine.Run(ctx)
 
 	if client != nil {
+		// Say what the wait is for. A silent pause after Ctrl-C is
+		// indistinguishable from a hang, and the operator is usually standing
+		// at the front of a room when they find that out.
+		if queued := client.Queued(); queued > 0 {
+			if client.Connected() {
+				log.Info("sending the last segments to the server", "queued", queued)
+			} else {
+				log.Warn("the server is not reachable; not waiting for it", "queued", queued)
+			}
+		}
 		if !client.Flush(15 * time.Second) {
-			log.Warn("some segments could not be delivered before shutdown", "queued", client.Queued())
+			log.Warn("some segments were not delivered to the server",
+				"queued", client.Queued(), "transcript_file", cfg.Transcript)
 		}
 		stopClient()
 		select {

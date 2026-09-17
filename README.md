@@ -237,6 +237,12 @@ said, flushes it to the relay, and then exits — so the last sentence of the
 talk is not lost. Transcripts stay in `./data` on the relay and in whatever
 you passed to `--transcript`.
 
+If it does not stop promptly, press Ctrl-C again and it exits immediately.
+That is worth knowing before you need it: a first Ctrl-C shuts down tidily,
+which takes a moment when a transcription is still running, and a second one
+gives up on tidiness. Either way the listener says what it is waiting for
+rather than sitting there silently.
+
 ## When the venue network fights back
 
 Most conference Wi-Fi isolates clients, so attendees cannot reach a laptop on

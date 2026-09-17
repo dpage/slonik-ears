@@ -16,6 +16,11 @@ import (
 	"github.com/dpage/slonik-ears/internal/protocol"
 )
 
+// maxShutdownWait caps how long Run waits for outstanding transcriptions once
+// the source has ended. Long enough for a chunk that is nearly done; short
+// enough that Ctrl-C feels like it did something.
+const maxShutdownWait = 15 * time.Second
+
 // Publisher is the subset of Client the engine needs, so tests can substitute
 // something simpler.
 type Publisher interface {
@@ -186,10 +191,20 @@ func (e *Engine) Run(ctx context.Context) error {
 	if req, ok := e.chunk.Flush(); ok {
 		e.enqueue(req)
 	}
-	// Give the worker time to finish what is queued and in flight. Without
+	// Give the worker time to finish what is queued and in flight: without
 	// this the last utterance of a talk is lost, which is precisely the one
-	// people notice.
-	if !e.waitForQueue(e.cfg.FinalTimeout + 5*time.Second) {
+	// people notice. Bounded well below FinalTimeout, though — the point is to
+	// catch a transcription that is nearly done, not to wait out a model that
+	// has stopped answering while somebody stands there pressing Ctrl-C.
+	budget := e.cfg.FinalTimeout
+	if budget > maxShutdownWait {
+		budget = maxShutdownWait
+	}
+	if pending := e.pendingWork(); pending > 0 {
+		e.log.Info("finishing the last utterance before stopping",
+			"pending", pending, "waiting_up_to", budget)
+	}
+	if !e.waitForQueue(budget) {
 		e.log.Warn("gave up waiting for outstanding transcriptions", "pending", e.pendingWork())
 	}
 

@@ -351,15 +351,23 @@ func (c *Client) setConnected(v bool) {
 // Flush waits until every queued segment has been written to the server, or
 // the timeout expires. It reports whether the queue drained. Call it before
 // shutting down, otherwise the last thing the speaker said never arrives.
+//
+// While the link is up it waits the full timeout, because a brief blip is
+// worth riding out. While the link is down it waits only a moment for a
+// reconnect: a server that is not there will not become there, and holding
+// the operator hostage to that — at the end of a talk, in front of a room —
+// is the wrong trade. Anything undelivered is still in the --transcript file.
 func (c *Client) Flush(timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
+	const disconnectedGrace = 2 * time.Second
+
+	start := time.Now()
+	deadline := start.Add(timeout)
 	for time.Now().Before(deadline) {
-		if c.Queued() == 0 && c.Connected() {
-			// One more moment for the write to reach the wire.
-			time.Sleep(50 * time.Millisecond)
-			if c.Queued() == 0 {
-				return true
-			}
+		if c.Queued() == 0 {
+			return true
+		}
+		if !c.Connected() && time.Since(start) > disconnectedGrace {
+			return false
 		}
 		c.kick()
 		time.Sleep(50 * time.Millisecond)
