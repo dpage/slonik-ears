@@ -200,10 +200,15 @@ jobs:
             curl -sf http://127.0.0.1:18081/healthz >/dev/null && break
             sleep 0.25
           done
+          # Seed enough transcript that the view has to scroll, then leave a
+          # listener running in real time so new lines keep arriving.
+          timeout 20 /tmp/ears-listener --room smoke --title "Smoke Room" --track "CI" \
+            --server http://127.0.0.1:18081 --token ci-token \
+            --mock --file testdata/sample.wav --loop --fast || true
           /tmp/ears-listener --room smoke --title "Smoke Room" --track "CI" \
             --server http://127.0.0.1:18081 --token ci-token \
             --mock --file testdata/sample.wav --loop &
-          sleep 6
+          sleep 4
           node web/e2e/smoke.mjs http://127.0.0.1:18081 smoke
 
       - name: Keep the screenshots when something looks wrong
