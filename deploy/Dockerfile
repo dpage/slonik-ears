@@ -28,7 +28,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath \
     -ldflags "-s -w -X github.com/dpage/slonik-ears/internal/version.Version=${VERSION} -X github.com/dpage/slonik-ears/internal/version.Commit=${COMMIT}" \
     -o /out/ears-server ./cmd/ears-server
 
-FROM alpine:3.22
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata wget && \
     adduser -D -u 10001 ears && \
     mkdir -p /data && chown ears:ears /data
