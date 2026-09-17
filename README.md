@@ -65,16 +65,16 @@ paste it in order.
 brew install go node whisper-cpp
 ```
 
-`whisper-cpp` is the speech-to-text engine. Check it brought the HTTP server
-with it — everything below depends on that one binary:
+`whisper-cpp` is the speech-to-text engine, and the formula installs the HTTP
+server that everything below depends on, so `whisper-server` is on your `PATH`
+once the install finishes:
 
 ```bash
 whisper-server --help | head -3
 ```
 
-If that comes back "command not found", the formula on your machine did not
-ship it; build [whisper.cpp][whispercpp] from source and put its
-`build/bin/whisper-server` on your `PATH`.
+If you would rather build [whisper.cpp][whispercpp] from source, put its
+`build/bin/whisper-server` on your `PATH` instead.
 
 ### Build Slonik Ears
 
