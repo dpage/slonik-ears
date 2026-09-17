@@ -99,10 +99,10 @@ smoke: web server
 	@EARS_PUBLISH_TOKEN=smoke-token ./$(BIN)/ears-server --addr 127.0.0.1:8099 & \
 	SERVER=$$!; \
 	sleep 1; \
-	timeout 20 $(GO) run ./cmd/ears-listener --room smoke --title "Smoke Room" --track CI \
+	timeout 20 $(GO) run ./cmd/ears-listener --room smoke --title "Smoke Room" --track CI --speaker "Test Speaker" \
 		--server http://127.0.0.1:8099 --token smoke-token \
 		--mock --file testdata/sample.wav --loop --fast || true; \
-	$(GO) run ./cmd/ears-listener --room smoke --title "Smoke Room" --track CI \
+	$(GO) run ./cmd/ears-listener --room smoke --title "Smoke Room" --track CI --speaker "Test Speaker" \
 		--server http://127.0.0.1:8099 --token smoke-token \
 		--mock --file testdata/sample.wav --loop & \
 	LISTENER=$$!; \
