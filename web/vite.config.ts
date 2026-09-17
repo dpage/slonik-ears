@@ -14,7 +14,7 @@ function keepDistTracked(): Plugin {
   return {
     name: 'ears-keep-dist-tracked',
     closeBundle() {
-      writeFileSync(join(__dirname, 'dist', '.gitkeep'), '')
+      writeFileSync(join(import.meta.dirname, 'dist', '.gitkeep'), '')
     },
   }
 }
