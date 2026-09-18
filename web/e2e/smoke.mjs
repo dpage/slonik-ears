@@ -51,6 +51,39 @@ async function visit(path, name, viewport, settleMs = 4000) {
 }
 
 /**
+ * The text download is written by the page now rather than fetched from the
+ * server, so that it is grouped into sentences by the same code that groups
+ * the screen. That makes it app code, and app code that only runs when
+ * somebody presses a button is app code nobody notices has broken.
+ */
+async function checkTranscriptDownload(viewport) {
+  const context = await browser.newContext({ viewport, acceptDownloads: true })
+  const page = await context.newPage()
+  await page.goto(`${base}/r/${room}`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(3000)
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.click('button:has-text("Download text")'),
+  ])
+  const body = await (await import('node:fs/promises')).readFile(await download.path(), 'utf8')
+
+  check(/\.txt$/.test(download.suggestedFilename()), `[download] is named as text (${download.suggestedFilename()})`)
+  check(body.includes('Smoke Room'), '[download] carries the room title')
+  check(/-{60}/.test(body), '[download] has the header rule')
+  check(/replication|postgres|elephant/i.test(body), '[download] contains the transcript')
+  // Grouped by sentence: every line of body text should end in punctuation,
+  // barring the last one if the speaker is mid-sentence.
+  const lines = body.split('\n').slice(6).filter((l) => l.trim() !== '')
+  const finished = lines.slice(0, -1)
+  const ragged = finished.filter((l) => !/[.!?]["'”’)\]]?$/.test(l))
+  check(finished.length > 0, `[download] has transcript lines (${finished.length})`)
+  check(ragged.length === 0, `[download] every finished line ends a sentence (${ragged.length} do not)`)
+
+  await context.close()
+}
+
+/**
  * The stage display is the one nobody looks at closely until it is on a
  * projector in front of three hundred people, so check the two things that
  * have actually gone wrong on one: the controls in the header drawn on top of
@@ -170,6 +203,11 @@ async function checkFollowsTheSpeaker(path, name, viewport) {
         lastVisible: last ? last.bottom <= window.innerHeight + 1 && last.top >= 0 : false,
         jumpButton: !!document.querySelector('.jump'),
         lineCount: lines.length,
+        // Measured rather than counted. Now that paragraphs are sentences, a
+        // new segment often extends the one being spoken instead of adding
+        // another, so a count can stand still whilst the transcript is very
+        // much still arriving.
+        charCount: lines.reduce((n, el) => n + (el.textContent ?? '').length, 0),
       }
     })
 
@@ -183,7 +221,7 @@ async function checkFollowsTheSpeaker(path, name, viewport) {
 
   await page.waitForTimeout(6000)
   const later = await state()
-  check(later.lineCount > initial.lineCount, `[${name}] new lines arrived`)
+  check(later.charCount > initial.charCount, `[${name}] more transcript arrived`)
   check(later.atBottom && later.lastVisible, `[${name}] still following after new lines`)
 
   // Scroll back, as a reader catching up on a missed sentence would.
@@ -225,6 +263,7 @@ try {
   // here, so it is where the controls will collide first if they ever do.
   await checkStageFurniture({ width: 1280, height: 720 })
   await checkQRSurvivesAnOutage({ width: 1280, height: 720 })
+  await checkTranscriptDownload({ width: 1280, height: 800 })
 
   const missing = await visit('/r/no-such-room', 'missing', { width: 1280, height: 800 }, 2500)
   check(/No such room/i.test(missing.text), 'an unknown room is reported rather than hanging')

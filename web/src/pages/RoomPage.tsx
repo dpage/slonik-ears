@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { qrURL, transcriptURL } from '../api'
+import { downloadTranscript } from '../transcriptFile'
 import { useConfig } from '../App'
 import ConnectionBadge from '../components/ConnectionBadge'
 import ReadingControls from '../components/ReadingControls'
@@ -82,9 +83,20 @@ export default function RoomPage() {
           <button type="button" className="button" onClick={() => setShowShare((v) => !v)}>
             {showShare ? 'Hide share code' : 'Share'}
           </button>
-          <a className="button" href={transcriptURL(roomId ?? '', 'txt')}>
+          {/*
+            Written here rather than fetched from the server, so the file a
+            speaker is given reads the same as the page they were reading:
+            grouped into sentences by the one implementation of the rules,
+            instead of two that agree until somebody edits one of them.
+          */}
+          <button
+            type="button"
+            className="button"
+            onClick={() => downloadTranscript(room, roomId ?? '', segments, showTimestamps)}
+            disabled={segments.length === 0}
+          >
             Download text
-          </a>
+          </button>
           <a className="button" href={transcriptURL(roomId ?? '', 'srt')}>
             Subtitles
           </a>

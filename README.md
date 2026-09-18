@@ -246,7 +246,7 @@ stage display on a screen beside the speaker:
 | `/` | the lobby: every room, live ones first |
 | `/r/main-hall` | attendees, on their own devices |
 | `/r/main-hall/stage` | a screen beside the stage: huge text and a QR code |
-| `/api/rooms/main-hall/transcript?format=txt` | the speaker, afterwards (also `srt`, `vtt`, `json`) |
+| `/api/rooms/main-hall/transcript?format=txt` | scripted access afterwards (also `srt`, `vtt`, `json`) |
 
 The stage view takes `?lines=6`, `?size=120` (percent) and `?qr=0` if the
 projector is smaller, larger or busier than the defaults assume.
