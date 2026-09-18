@@ -70,6 +70,18 @@ type Config struct {
 	NoPartials     bool `yaml:"no_partials"`
 	PreRollMs      int  `yaml:"pre_roll_ms"`
 
+	// Voice detection. These decide what counts as somebody talking, and are
+	// the settings to reach for when a transcript is either missing speech or
+	// full of things nobody said.
+	//
+	// MinRMS is the one that matters most: an absolute level below which
+	// nothing is ever speech. Too high and a quiet speaker is ignored; too low
+	// and the room's own noise is sent to the model, which does not answer
+	// "there was nothing there" but invents something plausible instead.
+	MinRMS      float64 `yaml:"min_rms"`
+	StartFactor float64 `yaml:"start_factor"`
+	StopFactor  float64 `yaml:"stop_factor"`
+
 	// Timeouts, in seconds on the wire because nobody enjoys YAML durations.
 	PartialTimeoutSec int `yaml:"partial_timeout_sec"`
 	FinalTimeoutSec   int `yaml:"final_timeout_sec"`
@@ -93,6 +105,9 @@ func DefaultConfig() Config {
 		MaxUtteranceMs:    ch.MaxUtteranceMs,
 		PartialMs:         ch.PartialIntervalMs,
 		PreRollMs:         ch.PreRollMs,
+		MinRMS:            ch.VAD.MinRMS,
+		StartFactor:       ch.VAD.StartFactor,
+		StopFactor:        ch.VAD.StopFactor,
 		PartialTimeoutSec: 8,
 		FinalTimeoutSec:   60,
 		LogLevel:          "info",
@@ -132,6 +147,10 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.PartialMs, "partial-ms", c.PartialMs, "how often to refresh the live preview")
 	fs.BoolVar(&c.NoPartials, "no-partials", c.NoPartials, "disable live previews, halving the load on the model")
 	fs.IntVar(&c.PreRollMs, "pre-roll-ms", c.PreRollMs, "audio kept from before speech is detected")
+
+	fs.Float64Var(&c.MinRMS, "min-rms", c.MinRMS, "absolute level below which nothing is ever speech; raise it if the room's noise is being transcribed, lower it if a quiet speaker is missed")
+	fs.Float64Var(&c.StartFactor, "start-factor", c.StartFactor, "how far above the estimated noise floor a frame must be to start an utterance")
+	fs.Float64Var(&c.StopFactor, "stop-factor", c.StopFactor, "the lower threshold that sustains an utterance once it has started")
 
 	fs.IntVar(&c.PartialTimeoutSec, "partial-timeout", c.PartialTimeoutSec, "seconds to wait for a preview transcription")
 	fs.IntVar(&c.FinalTimeoutSec, "final-timeout", c.FinalTimeoutSec, "seconds to wait for a committed transcription")
@@ -194,6 +213,9 @@ func (c *Config) LoadFile(path string, fs *flag.FlagSet) error {
 	overlay("partial-ms", func() { c.PartialMs = cmdline.PartialMs })
 	overlay("no-partials", func() { c.NoPartials = cmdline.NoPartials })
 	overlay("pre-roll-ms", func() { c.PreRollMs = cmdline.PreRollMs })
+	overlay("min-rms", func() { c.MinRMS = cmdline.MinRMS })
+	overlay("start-factor", func() { c.StartFactor = cmdline.StartFactor })
+	overlay("stop-factor", func() { c.StopFactor = cmdline.StopFactor })
 	overlay("partial-timeout", func() { c.PartialTimeoutSec = cmdline.PartialTimeoutSec })
 	overlay("final-timeout", func() { c.FinalTimeoutSec = cmdline.FinalTimeoutSec })
 	overlay("transcript", func() { c.Transcript = cmdline.Transcript })
@@ -318,6 +340,22 @@ func (c Config) Channels() ([]int, error) {
 	return out, nil
 }
 
+// VADConfig builds the detector's settings, leaving anything unset at its
+// default.
+func (c Config) VADConfig() audio.VADConfig {
+	vad := audio.DefaultVADConfig()
+	if c.MinRMS > 0 {
+		vad.MinRMS = c.MinRMS
+	}
+	if c.StartFactor > 0 {
+		vad.StartFactor = c.StartFactor
+	}
+	if c.StopFactor > 0 {
+		vad.StopFactor = c.StopFactor
+	}
+	return vad
+}
+
 // EngineConfig converts to the engine's configuration. The glossary is passed
 // in already resolved, because reading it can fail on a bad file and that is
 // better reported at startup than here.
@@ -333,7 +371,7 @@ func (c Config) EngineConfig(log *slog.Logger, vocabulary []string) EngineConfig
 			MaxUtteranceMs:    c.MaxUtteranceMs,
 			PartialIntervalMs: partial,
 			PreRollMs:         c.PreRollMs,
-			VAD:               audio.DefaultVADConfig(),
+			VAD:               c.VADConfig(),
 		},
 		Language:       c.Language,
 		Translate:      c.Translate,

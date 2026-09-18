@@ -12,13 +12,22 @@ type VADConfig struct {
 	// StopFactor is the lower threshold used once speech has started, giving
 	// hysteresis so quiet syllables do not chop a sentence in half.
 	StopFactor float64
-	// MinRMS is an absolute floor; below this nothing is ever speech. It has
-	// to sit well under the quietest frame of real speech, and a line input
-	// running at a conservative level puts that lower than you would think:
-	// measured on a TASCAM US-16x08 with a lectern microphone, ordinary speech
-	// arrives at a frame RMS of 0.004 to 0.008, so the 0.004 this used to be
-	// sat directly on top of the speaker and left the adaptive part of the
-	// detector with nothing to do.
+	// MinRMS is an absolute floor; below this nothing is ever speech.
+	//
+	// It is the setting that matters most, and the one that has been wrong
+	// twice for the same underlying reason: it was calibrated against a
+	// capture path that was quietly attenuating everything by the number of
+	// channels on the interface. On a correctly levelled input, measured over
+	// a recording with known silent and spoken stretches, the room sits at a
+	// frame RMS of 0.0016 to 0.005 and speech runs from 0.06 to 0.25. There is
+	// a very comfortable gap between those, and this sits in it.
+	//
+	// Too high and a quiet speaker is ignored. Too low and the room's own
+	// noise is committed and sent to the model, which does not reply "there
+	// was nothing there": it invents something plausible, which is where
+	// "Thank you." and hallucinated song lyrics come from. At 0.0005 the same
+	// recording sent 28 seconds of empty room to the model against 19 seconds
+	// of real speech captured.
 	MinRMS float64
 	// AdaptRate is how quickly the noise floor follows the room downwards, per
 	// frame: the audience settled, the air conditioning stopped.
@@ -42,7 +51,7 @@ func DefaultVADConfig() VADConfig {
 	return VADConfig{
 		StartFactor:   3.0,
 		StopFactor:    1.8,
-		MinRMS:        0.0008,
+		MinRMS:        0.012,
 		AdaptRate:     0.02,
 		AdaptRiseRate: 0.002,
 		HangoverMs:    500,
