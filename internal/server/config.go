@@ -152,7 +152,12 @@ func (c *Config) applyEnv() {
 		b := truthy(v)
 		c.Auth.AllowAutoRooms = &b
 	}
-	// PORT is what most PaaS hosts inject.
+	// PORT, alone among these, carries no EARS_ prefix, and deliberately so:
+	// it is the name platform hosts inject to tell an application which port
+	// to bind, so honouring it is what lets the server be deployed to one
+	// with no configuration at all. Renaming it for consistency would break
+	// exactly the deployment the documentation recommends. Applied last, so
+	// that on a host which sets it the platform wins over EARS_ADDR.
 	if v, ok := os.LookupEnv("PORT"); ok && v != "" {
 		c.Server.Addr = ":" + v
 	}

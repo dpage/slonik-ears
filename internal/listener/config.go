@@ -16,8 +16,13 @@ import (
 )
 
 // Config is everything a listener needs to know. It can come from flags, a
-// YAML file, or the environment; flags win, then the environment, then the
-// file, then the defaults.
+// YAML file, or the environment; flags win, then the file, then the
+// environment, then the defaults.
+//
+// The file beating the environment is the order the code actually implements
+// rather than the one people expect: LoadFile runs first and ApplyEnv then
+// fills only what is still unset, so a value written in the config file
+// suppresses the matching variable entirely.
 type Config struct {
 	// Where the transcript goes.
 	Server string `yaml:"server"`

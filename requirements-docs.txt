@@ -1,0 +1,7 @@
+# Dependencies for building the documentation site.
+#
+# Pinned so that a build in CI produces the same site as a build on a laptop,
+# and so that a new release of the theme cannot break publication on a day
+# nobody touched the documentation.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
