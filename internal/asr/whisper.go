@@ -74,6 +74,11 @@ func NewWhisper(cfg WhisperConfig) (*WhisperClient, error) {
 // Name implements Transcriber.
 func (c *WhisperClient) Name() string { return c.name }
 
+// vadEnabled reports whether this request should ask whisper.cpp to run its
+// own voice detection. Only the local server understands it; an
+// OpenAI-compatible endpoint is identified by having a model name.
+func (c *WhisperClient) vadEnabled() bool { return c.cfg.VAD && c.cfg.Model == "" }
+
 // Close implements Transcriber.
 func (c *WhisperClient) Close() error {
 	c.http.CloseIdleConnections()
@@ -124,8 +129,26 @@ func (c *WhisperClient) Transcribe(ctx context.Context, pcm []float32, sampleRat
 	if lang == "" {
 		lang = "auto"
 	}
+	// verbose_json carries the per-segment timings and the detected language,
+	// which is what we would rather have. It cannot be used together with
+	// whisper.cpp's own voice detection, though: when that finds no speech it
+	// leaves zero segments behind, and serialising the verbose response then
+	// asks for a language that was never detected. whisper.cpp does not
+	// return an error for that, it exits, taking the model server down with
+	// it. Reproduced against whisper.cpp 1.9.4 with half a second of silence:
+	//
+	//	response_format=json         + vad=true -> HTTP 200
+	//	response_format=verbose_json + vad=true -> the server process dies
+	//
+	// Nothing needs the extra fields badly enough to trade the server for
+	// them, and a listener that starts by health-checking the backend would
+	// otherwise kill it before transcribing a word.
+	format := "verbose_json"
+	if c.vadEnabled() {
+		format = "json"
+	}
 	fields := map[string]string{
-		"response_format": "verbose_json",
+		"response_format": format,
 		"temperature":     strconv.FormatFloat(maxFloat(opts.Temperature, c.cfg.Temperature), 'f', -1, 64),
 		"language":        lang,
 	}
@@ -142,7 +165,7 @@ func (c *WhisperClient) Transcribe(ctx context.Context, pcm []float32, sampleRat
 			fields["translate"] = "true"
 		}
 	}
-	if c.cfg.VAD && c.cfg.Model == "" {
+	if c.vadEnabled() {
 		fields["vad"] = "true"
 	}
 	for k, v := range fields {

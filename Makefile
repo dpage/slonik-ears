@@ -149,9 +149,23 @@ $(MODEL_FILE):
 	@mv $(MODEL_FILE).part $(MODEL_FILE)
 	@echo "Saved to $(MODEL_FILE)"
 
+VAD_MODEL  := $(MODEL_DIR)/ggml-silero-v5.1.2.bin
+VAD_URL    := https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin
+
+## vad-model: download the Silero voice detection model (under 1 MB)
+vad-model: $(VAD_MODEL)
+
+$(VAD_MODEL):
+	@mkdir -p $(MODEL_DIR)
+	@echo "Fetching the Silero VAD model ..."
+	curl -L --progress-bar -o $(VAD_MODEL).part $(VAD_URL)
+	@mv $(VAD_MODEL).part $(VAD_MODEL)
+	@echo "Saved to $(VAD_MODEL)"
+
 ## whisper-server: start whisper.cpp's server with the downloaded model
-whisper-server: $(MODEL_FILE)
-	whisper-server --model $(MODEL_FILE) --port 8081 --host 127.0.0.1 --threads 8
+whisper-server: $(MODEL_FILE) $(VAD_MODEL)
+	whisper-server --model $(MODEL_FILE) --port 8081 --host 127.0.0.1 --threads 8 \
+		--vad --vad-model $(VAD_MODEL)
 
 clean:
 	rm -rf $(BIN) web/dist/assets web/dist/index.html
