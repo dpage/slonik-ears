@@ -447,7 +447,13 @@ func (e *Engine) transcribe(ctx context.Context, req audio.Request) {
 		if ctx.Err() != nil {
 			return
 		}
-		e.setError(err.Error())
+		// The detail goes to the log, not to the room. What the engine
+		// publishes is shown to every attendee on their own phone, and the
+		// error from an HTTP client carries the backend's URL: on a room
+		// machine that is harmless localhost, but pointed at a server across
+		// the venue or at a cloud endpoint it puts an internal hostname, or
+		// an upstream provider's error payload, on three hundred screens.
+		e.setError(publicTranscriptionError(req.Kind))
 		e.log.Warn("transcription failed",
 			"kind", kindName(req.Kind),
 			"audio", time.Duration(req.EndMs-req.StartMs)*time.Millisecond,
@@ -569,6 +575,17 @@ func (e *Engine) setLevel(l float64) {
 		e.level = e.level*0.8 + l*0.2
 	}
 	e.stateMu.Unlock()
+}
+
+// publicTranscriptionError is what an attendee is told when the model server
+// is not answering: enough for somebody in the room to tell the organisers
+// that something is wrong, and nothing about where the machine sits or what
+// it is called.
+func publicTranscriptionError(kind audio.RequestKind) string {
+	if kind == audio.KindPartial {
+		return "the transcription service is slow to respond"
+	}
+	return "the transcription service is not responding"
 }
 
 func (e *Engine) setError(msg string) {

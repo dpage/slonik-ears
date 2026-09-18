@@ -28,6 +28,11 @@ type Server struct {
 	// roomTokens holds per-room publish token overrides.
 	roomTokens map[string]string
 	started    time.Time
+	// viewerAttempts and adminAttempts throttle repeated failed sign-ins, so
+	// neither secret can simply be worked through. See failureLimiter for why
+	// only failures are counted.
+	viewerAttempts *failureLimiter
+	adminAttempts  *failureLimiter
 }
 
 // New builds a server. The caller owns the store's lifetime.
@@ -44,6 +49,12 @@ func New(cfg Config, st store.Store, log *slog.Logger) *Server {
 		store:      st,
 		roomTokens: make(map[string]string),
 		started:    time.Now(),
+		// A passcode is short enough to read out to a hall, so it needs a
+		// budget that a person fumbling one never reaches and a script
+		// exhausts immediately. The admin token is longer and typed by one
+		// person, so it can afford to be much tighter.
+		viewerAttempts: newFailureLimiter(20, time.Minute),
+		adminAttempts:  newFailureLimiter(10, 5*time.Minute),
 	}
 	s.hub = hub.New(hub.Options{History: cfg.Server.History, Sink: sinkFunc(st.Append)})
 
@@ -292,7 +303,14 @@ func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
+	ip := s.clientIP(r)
+	if !s.viewerAttempts.allow(ip) {
+		s.log.Warn("too many failed passcode attempts", "ip", ip)
+		writeError(w, http.StatusTooManyRequests, "too many attempts; wait a moment and try again")
+		return
+	}
 	if !secretEqual(body.Key, s.cfg.Auth.ViewerPasscode) {
+		s.viewerAttempts.failed(ip)
 		writeError(w, http.StatusUnauthorized, "that passcode is not right")
 		return
 	}
@@ -302,7 +320,7 @@ func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil,
+		Secure:   requestIsHTTPS(r),
 		MaxAge:   int((12 * time.Hour).Seconds()),
 	})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -375,7 +393,15 @@ func (s *Server) handleAdminSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "no admin token is configured on this server")
 		return
 	}
+	ip := s.clientIP(r)
+	if !s.adminAttempts.allow(ip) {
+		s.log.Warn("too many failed admin sign-in attempts", "ip", ip)
+		writeError(w, http.StatusTooManyRequests, "too many attempts; wait a moment and try again")
+		return
+	}
 	if !secretEqual(body.Token, s.cfg.Auth.AdminToken) {
+		s.adminAttempts.failed(ip)
+		s.log.Warn("rejected admin sign-in", "ip", ip)
 		writeError(w, http.StatusUnauthorized, "that token is not right")
 		return
 	}
@@ -387,7 +413,7 @@ func (s *Server) handleAdminSession(w http.ResponseWriter, r *http.Request) {
 		// Strict rather than Lax: nothing should be able to reset a room on
 		// the strength of a link somebody followed from elsewhere.
 		SameSite: http.SameSiteStrictMode,
-		Secure:   r.TLS != nil,
+		Secure:   requestIsHTTPS(r),
 		MaxAge:   int((12 * time.Hour).Seconds()),
 	})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -455,9 +481,15 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 
 func (s *Server) clientIP(r *http.Request) string {
 	if s.cfg.Server.TrustProxy {
+		// The rightmost entry, not the leftmost. Everything to the left was
+		// supplied by the client and appended to by the proxy, so a request
+		// arriving with a header already in it dictates its own address; the
+		// last entry is the one the proxy itself observed. That distinction
+		// only cost log accuracy until this address started deciding who is
+		// allowed to keep guessing a passcode.
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			if i := strings.IndexByte(xff, ','); i > 0 {
-				return strings.TrimSpace(xff[:i])
+			if i := strings.LastIndexByte(xff, ','); i >= 0 {
+				return strings.TrimSpace(xff[i+1:])
 			}
 			return strings.TrimSpace(xff)
 		}

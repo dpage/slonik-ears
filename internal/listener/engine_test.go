@@ -2,7 +2,9 @@ package listener
 
 import (
 	"context"
+	"errors"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -203,4 +205,57 @@ func TestEngineCommitsTheLastUtteranceOnShutdown(t *testing.T) {
 	if got := pub.finalTexts(); len(got) != 1 {
 		t.Fatalf("the final utterance was lost on shutdown: %v", got)
 	}
+}
+
+// TestABackendFailureTellsTheRoomNothingAboutTheBackend guards an information
+// leak that only shows up in the deployments where it matters. The engine's
+// error text is published as the room's status detail and rendered on every
+// attendee's phone as "Room reports: …". Go's HTTP client puts the request URL
+// into its error, so a listener pointed at a model server elsewhere on the
+// venue network, or at a cloud endpoint, used to put that address, or up to
+// 300 bytes of an upstream provider's response, on every screen in the hall.
+func TestABackendFailureTellsTheRoomNothingAboutTheBackend(t *testing.T) {
+	var all [][]float32
+	all = append(all, frames(600, 0)...)
+	all = append(all, frames(1500, 0.3)...)
+	all = append(all, frames(1000, 0)...)
+
+	pub := &capturePublisher{}
+	cfg := DefaultEngineConfig()
+	cfg.Chunker.PartialIntervalMs = 0
+	cfg.Logger = testLogger()
+	cfg.StatusInterval = 20 * time.Millisecond
+	e, err := NewEngine(cfg, newFakeSource(all), failingTranscriber{}, pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = e.Run(ctx)
+
+	e.stateMu.Lock()
+	detail := e.lastErr
+	e.stateMu.Unlock()
+
+	if detail == "" {
+		t.Fatal("a backend failure was never reported to the room at all")
+	}
+	for _, leaked := range []string{"10.0.0.9", "8081", "inference", "http", "quota"} {
+		if strings.Contains(strings.ToLower(detail), leaked) {
+			t.Errorf("the room was told %q, which leaks %q from the backend error", detail, leaked)
+		}
+	}
+}
+
+// failingTranscriber fails the way a real HTTP client does, with the address
+// it could not reach baked into the message.
+type failingTranscriber struct{}
+
+func (failingTranscriber) Name() string { return "failing" }
+
+func (failingTranscriber) Close() error { return nil }
+
+func (failingTranscriber) Transcribe(context.Context, []float32, int, asr.Options) (asr.Result, error) {
+	return asr.Result{}, errors.New(
+		`asr: request failed: Post "http://10.0.0.9:8081/inference": dial tcp 10.0.0.9:8081: connect: connection refused (quota exceeded for account acct_12345)`)
 }
