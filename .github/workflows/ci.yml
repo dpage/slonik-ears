@@ -1,14 +1,17 @@
 name: CI
 
-# Documentation cannot break the Go tests, the web application or the end to
-# end run, so a change touching nothing else skips all of it and docs.yml
-# picks it up instead. The filter is an exclusion rather than an inclusion on
-# purpose: a path nobody thought to list runs the full suite, which is the
-# safe direction in which to be wrong.
+# This workflow builds and tests the Go code and the web application, so the
+# things it ignores are the ones that cannot change either: the documentation,
+# which docs.yml builds instead; the deployment examples, which nothing here
+# reads; and the other workflows, which have their own triggers.
 #
-# The filter applies to the change as a whole, so a commit touching both a
-# Markdown file and a Go file still runs everything. The two lists are
-# duplicated because GitHub does not support YAML anchors in a workflow.
+# The filter is an exclusion rather than an inclusion on purpose: a path
+# nobody thought to list runs the full suite, which is the safe direction in
+# which to be wrong. It also applies to the change as a whole, so a commit
+# touching both a Markdown file and a Go file still runs everything.
+#
+# The two lists are duplicated because GitHub does not support YAML anchors
+# in a workflow; keep them identical.
 on:
   push:
     branches: [main]
@@ -18,7 +21,11 @@ on:
       - '**/*.md'
       - 'mkdocs.yml'
       - 'requirements-docs.txt'
+      - 'deploy/**'
+      - '.github/dependabot.yml'
       - '.github/workflows/docs.yml'
+      - '.github/workflows/docker.yml'
+      - '.github/workflows/release.yml'
   pull_request:
     paths-ignore:
       - 'docs/**'
@@ -26,7 +33,11 @@ on:
       - '**/*.md'
       - 'mkdocs.yml'
       - 'requirements-docs.txt'
+      - 'deploy/**'
+      - '.github/dependabot.yml'
       - '.github/workflows/docs.yml'
+      - '.github/workflows/docker.yml'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 # Least privilege by default; the jobs that need more ask for it themselves.
