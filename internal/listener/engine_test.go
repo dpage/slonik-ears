@@ -3,6 +3,7 @@ package listener
 import (
 	"context"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -204,3 +205,95 @@ func TestEngineCommitsTheLastUtteranceOnShutdown(t *testing.T) {
 		t.Fatalf("the final utterance was lost on shutdown: %v", got)
 	}
 }
+
+// TestTheQueueDoesNotGrowWithoutLimit covers a model that cannot keep up with
+// the room. The queue used to be unbounded, so every utterance the model was
+// too slow for was held in full: roughly a megabyte of audio each, growing for
+// as long as the talk lasted, whilst the transcript fell further and further
+// behind the speaker with nothing to say so.
+func TestTheQueueDoesNotGrowWithoutLimit(t *testing.T) {
+	e := &Engine{
+		cfg:  DefaultEngineConfig(),
+		log:  testLogger(),
+		wake: make(chan struct{}, 1),
+	}
+
+	for i := range maxQueuedFinals * 3 {
+		e.enqueue(audio.Request{
+			Kind:    audio.KindFinal,
+			StartMs: int64(i) * 5000,
+			EndMs:   int64(i)*5000 + 4000,
+		})
+	}
+
+	e.mu.Lock()
+	queued := len(e.queuedFinals)
+	oldest := e.queuedFinals[0].StartMs
+	e.mu.Unlock()
+
+	if queued != maxQueuedFinals {
+		t.Errorf("the queue holds %d utterances, want it capped at %d", queued, maxQueuedFinals)
+	}
+	// What survives has to be the most recent audio: an audience reading a
+	// live transcript needs what is being said now, not what was said two
+	// minutes ago.
+	wantOldest := int64(maxQueuedFinals*3-maxQueuedFinals) * 5000
+	if oldest != wantOldest {
+		t.Errorf("the queue kept audio from %dms, want the newest starting at %dms", oldest, wantOldest)
+	}
+}
+
+// TestASilentCaptureDeviceIsReported covers a microphone that goes away
+// mid-talk. Silence still arrives as frames, so a device that stops calling
+// back at all leaves the listener sitting there looking healthy and
+// transcribing nothing for the rest of the session.
+func TestASilentCaptureDeviceIsReported(t *testing.T) {
+	src := &stallingSource{ch: make(chan []float32)}
+	pub := &capturePublisher{}
+	cfg := DefaultEngineConfig()
+	cfg.Logger = testLogger()
+	e, err := NewEngine(cfg, src, &asr.Mock{}, pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = e.Run(ctx)
+	}()
+
+	// The device never delivers a frame. Rather than wait out the real
+	// timeout, check that the engine has noticed once it has elapsed.
+	deadline := time.Now().Add(noAudioTimeout + 3*time.Second)
+	for time.Now().Before(deadline) {
+		e.stateMu.Lock()
+		got := e.lastErr
+		e.stateMu.Unlock()
+		if got != "" {
+			cancel()
+			<-done
+			if !strings.Contains(got, "no audio") {
+				t.Errorf("the engine reported %q, want it to name the missing audio", got)
+			}
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	t.Errorf("a capture device that delivered nothing for %v was never reported", noAudioTimeout)
+}
+
+// stallingSource is a microphone that opens and then goes quiet for ever,
+// which is what an unplugged USB interface looks like from here.
+type stallingSource struct {
+	ch chan []float32
+}
+
+func (s *stallingSource) Frames() <-chan []float32 { return s.ch }
+func (s *stallingSource) Err() error               { return nil }
+func (s *stallingSource) Name() string             { return "stalling" }
+func (s *stallingSource) Close() error             { return nil }

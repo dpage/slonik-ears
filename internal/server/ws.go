@@ -221,8 +221,12 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Keepalive pings on a separate goroutine; the read loop below owns the
-	// connection's read side only, which is what gorilla requires.
+	// Keepalive pings on a separate goroutine. WriteControl rather than
+	// WriteMessage: gorilla allows only one concurrent writer, and the read
+	// loop below replies to a rejected message on this same connection, so a
+	// ping landing at that moment would interleave with it and emit a corrupt
+	// frame. WriteControl is the one write method documented as safe to call
+	// concurrently, which is exactly why it exists.
 	stop := make(chan struct{})
 	defer close(stop)
 	go func() {
@@ -231,8 +235,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case <-t.C:
-				_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
 					return
 				}
 			case <-stop:
