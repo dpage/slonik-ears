@@ -206,12 +206,21 @@ func (s *File) Load(roomID string) ([]protocol.Segment, error) {
 // The open writer has to go first. Renaming a file out from under a file
 // descriptor does not move the descriptor: it would carry on happily appending
 // the next talk to the archived file, which is the opposite of the point.
+//
+// Closing the writer and renaming the file also have to happen as one
+// operation, under the lock throughout. A room is reset while the previous
+// speaker may still be finishing a sentence, and a segment that arrives
+// between the close and the rename reopens the very file that is about to be
+// moved. The new talk's writer then follows the file into the archive, the
+// live transcript is never recreated for the life of the process, and at the
+// next restart the two talks come back merged into one.
 func (s *File) Archive(roomID string) error {
 	if !protocol.ValidRoomID(roomID) {
 		return fmt.Errorf("invalid room id %q", roomID)
 	}
 
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if w, ok := s.writers[roomID]; ok {
 		if err := w.bw.Flush(); err != nil {
 			s.reportLocked("flush transcript", roomID, err)
@@ -219,7 +228,6 @@ func (s *File) Archive(roomID string) error {
 		_ = w.f.Close()
 		delete(s.writers, roomID)
 	}
-	s.mu.Unlock()
 
 	src := s.path(roomID)
 	if _, err := os.Stat(src); errors.Is(err, os.ErrNotExist) {

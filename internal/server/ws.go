@@ -267,6 +267,14 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 				s.log.Warn("stale listener rejected", "room", roomID, "ip", ip)
 				return
 			}
+			if errors.Is(err, hub.ErrRoomRemoved) {
+				_ = writeWS(conn, protocol.Message{
+					Type:  protocol.TypeError,
+					Error: "this room has been removed by an organiser",
+				})
+				s.log.Warn("listener publishing to a removed room", "room", roomID, "ip", ip)
+				return
+			}
 			_ = writeWS(conn, protocol.Message{Type: protocol.TypeError, Error: err.Error()})
 		}
 		if msg.Type == protocol.TypeBye {
