@@ -1,9 +1,32 @@
 name: CI
 
+# Documentation cannot break the Go tests, the web application or the end to
+# end run, so a change touching nothing else skips all of it and docs.yml
+# picks it up instead. The filter is an exclusion rather than an inclusion on
+# purpose: a path nobody thought to list runs the full suite, which is the
+# safe direction in which to be wrong.
+#
+# The filter applies to the change as a whole, so a commit touching both a
+# Markdown file and a Go file still runs everything. The two lists are
+# duplicated because GitHub does not support YAML anchors in a workflow.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '**/*.md'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+      - '.github/workflows/docs.yml'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '**/*.md'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 # Least privilege by default; the jobs that need more ask for it themselves.
