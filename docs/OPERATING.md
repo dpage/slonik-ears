@@ -110,6 +110,8 @@ being told that it is a machine transcript with the errors that implies.
 | Ctrl-C does not seem to stop the listener | it is finishing the last transcription, or waiting on the relay. It says which. Press Ctrl-C again to exit immediately |
 | Lines nobody said: "Thank you.", or ♪ song lyrics ♪ | the detector is committing chunks of an empty room, and the model fills them in rather than returning nothing. Raise `--min-rms` until the heartbeat's `level` during silence sits below `start_threshold` |
 | A quiet speaker is missed entirely | the opposite: lower `--min-rms`. Check first that the input is not simply too quiet, which the start-up channel report will tell you |
+| Text arrives many seconds late on a small machine | the encoder always processes a thirty second window whatever you send it, which a CPU feels and a GPU does not. Start `whisper-server` with `--audio-ctx 768` and the listener with `--no-partials` |
+| Nothing is transcribed at all, but everything looks healthy | on a PulseAudio host, `--device` may have matched a monitor: a loopback of what the machine is playing, which is silent. `--list-devices` marks them |
 | Sentences arrive chopped in half, or a long one stops partway through | the speaker is too quiet for the detector. Run with `--log-level debug` and compare `level` against `start_threshold` in the heartbeat: speech should peak at several times the threshold rather than brushing against it. Raise the gain on the interface first, and only then reach for the detector's settings |
 
 ## Turning a room around between talks

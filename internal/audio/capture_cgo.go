@@ -6,8 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,6 +40,7 @@ func ListDevices() ([]Device, error) {
 			ID:      infos[i].ID.String(),
 			Name:    infos[i].Name(),
 			Default: infos[i].IsDefault != 0,
+			Monitor: IsMonitorName(infos[i].Name()),
 		})
 	}
 	return out, nil
@@ -131,25 +130,24 @@ func OpenMicChannels(selector string, wanted []int) (*MicSource, error) {
 			ctx.Free()
 			return nil, fmt.Errorf("audio: enumerate capture devices: %w", err)
 		}
-		idx := -1
-		if n, convErr := strconv.Atoi(selector); convErr == nil && n >= 0 && n < len(infos) {
-			idx = n
-		} else {
-			for i := range infos {
-				if strings.EqualFold(infos[i].ID.String(), selector) ||
-					strings.Contains(strings.ToLower(infos[i].Name()), strings.ToLower(selector)) {
-					idx = i
-					break
-				}
-			}
+		devices := make([]Device, 0, len(infos))
+		for i := range infos {
+			devices = append(devices, Device{
+				ID:      infos[i].ID.String(),
+				Name:    infos[i].Name(),
+				Monitor: IsMonitorName(infos[i].Name()),
+			})
 		}
-		if idx < 0 {
+		idx, selErr := SelectDevice(devices, selector)
+		if selErr != nil {
 			_ = ctx.Uninit()
 			ctx.Free()
-			return nil, fmt.Errorf("audio: no capture device matches %q (try --list-devices)", selector)
+			return nil, selErr
 		}
-		cfg.Capture.DeviceID = infos[idx].ID.Pointer()
-		chosen = infos[idx].Name()
+		if idx >= 0 {
+			cfg.Capture.DeviceID = infos[idx].ID.Pointer()
+			chosen = infos[idx].Name()
+		}
 	}
 
 	s := &MicSource{

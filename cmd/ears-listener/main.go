@@ -319,14 +319,26 @@ func printDevices() error {
 		return nil
 	}
 	fmt.Println("Capture devices (use --device with the index or part of the name):")
+	monitors := false
 	for i, d := range devices {
 		marker := " "
 		if d.Default {
 			marker = "*"
 		}
-		fmt.Printf("  %s %d  %s\n", marker, i, d.Name)
+		note := ""
+		if d.Monitor {
+			note = "   [monitor: what this machine is playing, not what it is hearing]"
+			monitors = true
+		}
+		fmt.Printf("  %s %d  %s%s\n", marker, i, d.Name, note)
 	}
 	fmt.Println("\n  * = system default")
+	if monitors {
+		// Worth saying, because a monitor matches the name of the output it
+		// belongs to: asking for "Anker" would otherwise find the loopback
+		// rather than the microphone, and record silence without complaining.
+		fmt.Println("  A monitor is only selected if nothing else matches, or if you ask for one by name.")
+	}
 	return nil
 }
 
