@@ -85,6 +85,10 @@ rooms:
 Setting `allow_auto_rooms` to false then prevents a listener creating
 any room that is not declared, which suits a locked down conference.
 
+The Server Options document reproduces the complete example
+configuration, which also ships in the repository as
+`configs/server.example.yaml`.
+
 ## Behind a proxy
 
 When the server runs behind a reverse proxy, set `trust_proxy` so that

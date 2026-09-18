@@ -29,7 +29,7 @@ reads:
 | Variable | Description |
 | --- | --- |
 | EARS_ADDR | Address to listen on |
-| PORT | Port to listen on, for platforms that supply one |
+| PORT | Port to listen on, set by the hosting platform |
 | EARS_BASE_URL | Public URL, used for generated links and QR codes |
 | EARS_DATA_DIR | Directory for transcript storage |
 | EARS_EVENT_NAME | Event name shown in the lobby |
@@ -46,10 +46,93 @@ reads:
 | EARS_TLS_CERT_FILE | Certificate for terminating TLS directly |
 | EARS_TLS_KEY_FILE | Private key for terminating TLS directly |
 
+The one variable without the `EARS_` prefix is `PORT`, and it is not
+ours to rename. Most platform hosts inject it to tell an application
+which port to bind, so honouring the name is what allows the server to
+be deployed to one without any configuration at all. It is applied
+after `EARS_ADDR`, so on a host that sets it, the platform wins.
+
 ## Configuration file
 
 The configuration file groups settings under `server`, `auth`, `event`
-and `rooms`. The following example shows the structure:
+and `rooms`. A complete example ships in the repository as
+`configs/server.example.yaml`, reproduced here:
+
+```yaml
+# Slonik Ears server configuration.
+#
+# Everything here is optional: the server runs with no config at all, provided
+# EARS_PUBLISH_TOKEN is set. Environment variables override this file, so keep
+# secrets out of it and out of git.
+
+event:
+  name: "PGConf Europe 2026"
+  tagline: "Live transcripts for every track"
+  # Shown under the transcript. Worth keeping: machine transcription is very
+  # good and still occasionally very wrong.
+  notice: >-
+    Automatically generated live transcript. It will contain errors, especially
+    with names and technical terms. Please do not quote it verbatim.
+
+server:
+  addr: ":8080"
+  # The address attendees use. Only needed for QR codes and join links; when
+  # it is empty the server works it out from the request.
+  base_url: "https://ears.example.org"
+  # Transcripts are written here as one JSONL file per room. Leave empty to
+  # keep everything in memory and lose it on restart.
+  data_dir: "./data"
+  # Segments kept in memory per room, for late joiners and reconnects.
+  history: 2000
+  # Enable only when running behind a reverse proxy you control.
+  trust_proxy: false
+  # 0 means no limit. A few hundred viewers per room is untroubling; the
+  # bandwidth per viewer is a few hundred bytes a second.
+  max_viewers_per_room: 0
+  # For running TLS directly rather than behind a proxy.
+  # tls_cert_file: /etc/ssl/ears/fullchain.pem
+  # tls_key_file: /etc/ssl/ears/privkey.pem
+
+auth:
+  # Listeners must present this. Set it with EARS_PUBLISH_TOKEN instead of
+  # writing it here:  openssl rand -hex 24
+  publish_token: ""
+  # Leave empty for an open event, which is usually the point of the exercise.
+  # Set it (EARS_VIEWER_PASSCODE) for an internal or paid event.
+  viewer_passcode: ""
+  # Guards the admin API and the organiser page at /admin. Leave it empty and
+  # both are switched off, which is the safe default: this is the interface
+  # that can clear a talk off every screen in the building.
+  admin_token: ""
+  # Extra origins allowed to open WebSockets. Same-origin always works, and
+  # native clients (the listener) send no Origin header. Add entries here only
+  # if you are embedding the transcript in another site.
+  allowed_origins: []
+  # Whether a listener may create a room that is not listed below. Turn this
+  # off for a locked-down event where the room list is decided in advance.
+  allow_auto_rooms: true
+
+# Rooms declared here appear in the lobby before their listener connects, and
+# can each carry their own publish token so every room operator gets a
+# different secret.
+rooms:
+  - id: main-hall
+    title: "Main Hall"
+    track: "Track A"
+    language: "en"
+  - id: seminar-1
+    title: "Seminar Room 1"
+    track: "Track B"
+    language: "en"
+    # publish_token: "a-different-secret-for-this-room"
+  - id: workshop
+    title: "Workshop Room"
+    track: "Workshops"
+    language: "en"
+```
+
+The remainder of this page describes each key in turn. The shorter
+example below shows only the structure:
 
 ```yaml
 server:

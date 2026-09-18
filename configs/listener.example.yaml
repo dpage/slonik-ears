@@ -36,6 +36,10 @@ whisper_url: "http://127.0.0.1:8081/inference"
 model: ""
 api_key: ""
 translate: false
+# Ask the model server to apply its own voice detection, so a chunk containing
+# no speech comes back empty rather than being invented. This needs a VAD
+# model loaded on that server; without one it refuses the request.
+whisper_vad: false
 
 # The glossary handed to the model so it spells your jargon the way the
 # audience does. Left alone, the built-in Postgres list applies, which is what
@@ -89,4 +93,11 @@ stop_factor: 1.8
 
 # A local copy of every committed line, in case the network has other ideas.
 transcript_file: "main-hall.jsonl"
+
+# Record the captured audio to a WAV file, for working out afterwards why a
+# room transcribed badly. A recording holds every word said near the
+# microphone, by anybody, so treat making one as the organisers' decision and
+# keep the file out of version control.
+record_file: ""
+
 log_level: "info"

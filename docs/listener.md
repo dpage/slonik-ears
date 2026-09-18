@@ -38,6 +38,11 @@ A listener sends these values every time it connects. Values set from
 the organiser's page take precedence and survive a reconnection, so a
 listener restarting mid-event will not overwrite them.
 
+Every option can also be set in a YAML file passed with `--config`. The
+Listener Options document reproduces the complete example
+configuration, which ships in the repository as
+`configs/listener.example.yaml`.
+
 ## Rehearsing without publishing
 
 Before an event, check what the microphone hears without connecting to
