@@ -23,6 +23,7 @@ on:
       - 'requirements-docs.txt'
       - 'deploy/**'
       - '.github/dependabot.yml'
+      - '.github/workflows/actionlint.yml'
       - '.github/workflows/docs.yml'
       - '.github/workflows/docker.yml'
       - '.github/workflows/release.yml'
@@ -35,10 +36,18 @@ on:
       - 'requirements-docs.txt'
       - 'deploy/**'
       - '.github/dependabot.yml'
+      - '.github/workflows/actionlint.yml'
       - '.github/workflows/docs.yml'
       - '.github/workflows/docker.yml'
       - '.github/workflows/release.yml'
   workflow_dispatch:
+
+  # An advisory is published against a dependency that has not changed, which
+  # means nothing here would notice until somebody happened to push. The
+  # scheduled run exists for that, and runs the vulnerability job alone; the
+  # rest of the suite would only re-prove what the last push already proved.
+  schedule:
+    - cron: '17 7 * * 1'
 
 # Least privilege by default; the jobs that need more ask for it themselves.
 permissions:
@@ -50,11 +59,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  NODE_VERSION: '22'
+  # The same major version the container image is built on, so the web
+  # application is tested on what it actually ships on. Keep this, the
+  # `node:` tag in deploy/Dockerfile and the one in release.yml together.
+  NODE_VERSION: '26'
 
 jobs:
   lint:
     name: Lint
+    # The weekly run is looking for new advisories, not for code that has not
+    # changed since the last push.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -84,6 +99,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.os }})
+    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -142,6 +158,7 @@ jobs:
 
   web:
     name: Web app
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -173,6 +190,7 @@ jobs:
 
   end-to-end:
     name: End to end
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [test, web]

@@ -20,6 +20,7 @@ on:
   pull_request:
     paths:
       - 'deploy/Dockerfile'
+      - 'deploy/docker-compose.yml'
       - '.github/workflows/docker.yml'
       - 'go.mod'
       - 'go.sum'
@@ -47,6 +48,16 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v4
+
+      # The compose file is the documented way to run the relay, so a typo in
+      # it is a broken instruction. `config` resolves and validates it without
+      # starting anything; the token is only supplied because the file
+      # requires one to be set before it will resolve at all.
+      - name: Check the compose file
+        working-directory: deploy
+        env:
+          EARS_PUBLISH_TOKEN: validate-only
+        run: docker compose --file docker-compose.yml config --quiet
 
       # Single architecture, loaded into the local daemon, so the image can
       # actually be run. A multi-architecture image cannot be loaded, which is
