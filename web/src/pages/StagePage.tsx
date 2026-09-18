@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { qrURL } from '../api'
+import { toParagraphs } from '../sentences'
 import ConnectionBadge from '../components/ConnectionBadge'
 import { useRoomStream } from '../hooks/useRoomStream'
 
@@ -59,7 +60,10 @@ export default function StagePage() {
 
   const qrLoaded = () => window.clearTimeout(qrRetry.current)
 
-  const visible = segments.slice(-lineCount)
+  // Sentences, not committed segments: on a screen showing only a handful of
+  // lines it matters even more that each is a whole thought.
+  const paragraphs = useMemo(() => toParagraphs(segments), [segments])
+  const visible = paragraphs.slice(-lineCount)
 
   return (
     <div className="stage" data-theme="contrast" data-idle={idle} data-qr={showQR}>
@@ -91,9 +95,9 @@ export default function StagePage() {
         {visible.length === 0 && !partial && (
           <p className="muted">Waiting for the talk to begin…</p>
         )}
-        {visible.map((seg) => (
-          <p key={seg.seq} className="stage-line">
-            {seg.text}
+        {visible.map((p) => (
+          <p key={p.key} className="stage-line">
+            {p.text}
           </p>
         ))}
         {partial?.text && <p className="stage-line partial">{partial.text}</p>}

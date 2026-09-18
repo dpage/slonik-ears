@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { toParagraphs } from '../sentences'
 import type { Partial as PartialText, Segment } from '../types'
 
 interface Props {
@@ -18,6 +19,10 @@ interface Props {
 export default function TranscriptView({ segments, partial, showTimestamps, emptyMessage }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [pinned, setPinned] = useState(true)
+
+  // Recomputed only when the transcript actually changes: it walks every
+  // segment, and a room that has been running all morning has a lot of them.
+  const paragraphs = useMemo(() => toParagraphs(segments), [segments])
 
   const onScroll = () => {
     const el = scrollerRef.current
@@ -64,10 +69,16 @@ export default function TranscriptView({ segments, partial, showTimestamps, empt
       >
         {segments.length === 0 && !partial && <p className="muted empty">{emptyMessage}</p>}
 
-        {segments.map((seg) => (
-          <p className="line" key={seg.seq}>
-            {showTimestamps && <span className="stamp">{clock(seg.startMs)}</span>}
-            <span className="text">{seg.text}</span>
+        {/*
+          One paragraph per sentence rather than per committed segment. The
+          segments are cut where the speaker paused or where the chunker ran
+          out of patience, which puts paragraph breaks in the middle of
+          clauses; the sentence is what a reader actually follows.
+        */}
+        {paragraphs.map((p) => (
+          <p className="line" key={p.key}>
+            {showTimestamps && <span className="stamp">{clock(p.startMs)}</span>}
+            <span className="text">{p.text}</span>
           </p>
         ))}
 
