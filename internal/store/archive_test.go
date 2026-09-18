@@ -131,6 +131,8 @@ func contains(haystack, needle string) bool {
 // speaker still finishing a sentence when the organiser presses Reset is
 // enough to trigger it.
 func TestArchiveIsAtomicAgainstAConcurrentAppend(t *testing.T) {
+	const marker = "after the reset"
+
 	for attempt := range 200 {
 		dir := t.TempDir()
 		s, err := NewFile(dir, testLogger())
@@ -153,6 +155,10 @@ func TestArchiveIsAtomicAgainstAConcurrentAppend(t *testing.T) {
 			t.Fatal(err)
 		}
 		<-done
+
+		// Archive has returned and the appender has finished, so this one
+		// lands unambiguously after the rename.
+		s.Append("main-hall", seg(999, marker))
 		if err := s.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -174,17 +180,27 @@ func TestArchiveIsAtomicAgainstAConcurrentAppend(t *testing.T) {
 
 		lines := strings.Count(string(live), "\n")
 		archivedLines := strings.Count(string(archived), "\n")
-		if lines+archivedLines != 51 {
-			t.Fatalf("attempt %d: %d segments survived, expected 51 (%d live, %d archived)",
+		if lines+archivedLines != 52 {
+			t.Fatalf("attempt %d: %d segments survived, expected 52 (%d live, %d archived)",
 				attempt, lines+archivedLines, lines, archivedLines)
 		}
-		// The archive holds the old talk. Anything the appender wrote after
-		// the rename belongs in the live file, so once the rename has
-		// happened the archive must stop growing: a live file that never
-		// appears at all is the descriptor having followed the rename.
-		if archivedLines > 1 && lines == 0 {
-			t.Fatalf("attempt %d: every segment went into the archive and the live "+
-				"transcript was never recreated", attempt)
+		// The segment appended after Archive returned must be in the live
+		// file. Asserting it this way rather than on the concurrent writes is
+		// deliberate: the appender may legitimately get all fifty in before
+		// the rename, which leaves the live file empty through no fault of
+		// the code, and a test that reads that as a failure fails at random
+		// on a loaded machine. Once Archive has returned the rename has
+		// definitely happened, so where the next segment lands is a fact
+		// about the implementation rather than about the scheduler — and it
+		// is exactly what the descriptor following the rename would break.
+		if !strings.Contains(string(live), marker) {
+			t.Fatalf("attempt %d: a segment appended after the reset did not reach the "+
+				"live transcript (%d live, %d archived); the writer followed the rename "+
+				"into the archive", attempt, lines, archivedLines)
+		}
+		if strings.Contains(string(archived), marker) {
+			t.Fatalf("attempt %d: a segment appended after the reset was written into "+
+				"the archive", attempt)
 		}
 	}
 }
