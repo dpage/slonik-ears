@@ -67,6 +67,7 @@ nav:
       - Choosing a Model: models.md
       - Capturing Audio: audio.md
       - Running the Server: server.md
+      - Running in a Container: containers.md
       - Running a Listener: listener.md
       - Managing Rooms: rooms.md
 

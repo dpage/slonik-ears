@@ -124,7 +124,10 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            # A bare major tag is meaningless before 1.0, where the minor
+            # version carries the breaking changes: v0.2.0 would otherwise
+            # take the "0" tag over from v0.1.0 and call it an upgrade.
+            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
             type=sha,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
