@@ -26,3 +26,6 @@
 
 # Browser smoke test output
 /web/e2e/output/
+
+# The built documentation site.
+/site/

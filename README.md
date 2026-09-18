@@ -543,8 +543,45 @@ A few decisions worth knowing about:
 * **The voice detector adapts downwards readily and upwards reluctantly**, and
   not at all until the room has been quiet for half a second. The quiet frames
   within a sentence are not silence, and letting them into the estimate lets a
-  speaker gradually talk themselves into being ignored. `docs/OPERATING.md`
+  speaker gradually talk themselves into being ignored. `docs/tuning.md`
   covers tuning it against a recording of the room you will actually use.
+
+## Documentation
+
+The full documentation set lives in `docs/` and is built with
+[MkDocs](https://www.mkdocs.org/) and the Material theme. It covers
+installation, choosing a model, capturing audio, running an event,
+tuning transcription, the HTTP API, and troubleshooting.
+
+To read it locally:
+
+```bash
+pip install mkdocs-material
+mkdocs serve
+```
+
+The individual pages are readable as plain Markdown without building
+anything:
+
+| Page | Covers |
+| --- | --- |
+| [Event Checklist](docs/running_an_event.md) | Planning, the day before, and the day itself |
+| [Architecture](docs/architecture.md) | How the pieces fit together and where the audio stops |
+| [Quick Start](docs/quick_start.md) | Seeing it work with no model and no microphone |
+| [Installing](docs/installing.md) | Prerequisites, building, and platform differences |
+| [Choosing a Model](docs/models.md) | Measured accuracy and speed on different machines |
+| [Capturing Audio](docs/audio.md) | Devices, channels, levels and permissions |
+| [Running the Server](docs/server.md) | Tokens, persistence and where to run the relay |
+| [Running a Listener](docs/listener.md) | Starting a room and describing it |
+| [Managing Rooms](docs/rooms.md) | Turning a room around between talks |
+| [Listener Options](docs/listener_reference.md) | Every listener flag and configuration key |
+| [Server Options](docs/server_reference.md) | Every server flag and configuration key |
+| [HTTP API](docs/api.md) | Endpoints, authentication and examples |
+| [Tuning Transcription](docs/tuning.md) | Voice detection and utterance segmentation |
+| [Troubleshooting](docs/troubleshooting.md) | Symptoms, causes and what to do |
+| [Accessibility](docs/accessibility.md) | What the views provide, and the limits |
+| [FAQ](docs/faq.md) | The questions that come up first |
+| [Developer Resources](docs/developers.md) | Layout, checks and building the docs |
 
 ## Development
 

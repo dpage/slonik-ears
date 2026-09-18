@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120"
+     role="img" aria-label="Slonik Ears">
+  <!--
+    A variation on the ear the web app uses as its favicon, drawn rather than
+    set in a font so that it stays crisp at any size and does not depend on
+    whichever emoji the reader's system happens to ship.
+
+    The arcs on the left are sound arriving; the ear is what the project does
+    with it. This is the version for dark backgrounds.
+  -->
+  <g fill="none" stroke="#e8edf7" stroke-width="7"
+     stroke-linecap="round" stroke-linejoin="round">
+    <!-- The outer ear: up the front, over the top, and down behind. -->
+    <path d="M44 100c0-11 10-14 10-26 0-9-7-13-13-13s-13 6-13 15" />
+    <path d="M28 58c0-18 12-30 29-30 16 0 27 12 27 28 0 14-8 20-13 26" />
+    <!-- The inner whorl. -->
+    <path d="M46 56c0-6 5-11 11-11s11 5 11 11c0 8-8 11-8 19" />
+  </g>
+  <g fill="none" stroke="#e8edf7" stroke-width="6" stroke-linecap="round"
+     opacity="0.5">
+    <!-- Sound arriving. -->
+    <path d="M16 46a26 26 0 0 0 0 30" />
+    <path d="M9 39a38 38 0 0 0 0 44" />
+  </g>
+</svg>
