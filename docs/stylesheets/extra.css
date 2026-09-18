@@ -22,3 +22,13 @@
     width: 1.8rem;
     height: 1.8rem;
 }
+
+/* Screenshots are captured at twice the pixel density, so they must be
+   scaled to the column rather than shown at their natural size. The border
+   keeps a dark screenshot from bleeding into a dark page background. */
+.md-typeset img[src*="/screens/"] {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 0.2rem;
+}

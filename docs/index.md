@@ -10,6 +10,10 @@ shows the same text in large type beside the speaker. Only the text
 crosses the network; the audio never leaves the room it was recorded
 in.
 
+![The stage display: two sentences of a talk in large white type on black,
+the most recent line in grey, and a QR code in the corner captioned "Follow
+along on your phone"](img/screens/stage.png)
+
 The project exists for the conference case, which has a particular
 shape: several tracks at once, an audience on a venue network that
 blocks devices from talking to each other, and nobody with time to

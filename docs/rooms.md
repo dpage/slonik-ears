@@ -20,6 +20,13 @@ reason.
 
 ## What the page offers
 
+The page lists one card per room, whether or not a listener is
+currently connected to it:
+
+![The organiser's page, showing a card for each room with editable title,
+speaker and track fields above buttons to save, reset, remove or view the
+room](img/screens/admin.png)
+
 Each room carries three controls, covering what comes up between
 speakers:
 
