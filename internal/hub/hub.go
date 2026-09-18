@@ -457,7 +457,14 @@ func (r *Room) Reset() {
 	for s := range r.subs {
 		subs = append(subs, s)
 	}
+	// Live and Viewers are computed rather than stored, so a bare copy of
+	// r.info reports a room that nobody is watching and nothing is publishing
+	// to. Sent to a viewer that is quite happily receiving transcript, that
+	// reads as "waiting for room" on a badge sitting directly above the words
+	// arriving from the speaker.
 	info := r.info
+	info.Viewers = len(r.subs)
+	info.Live = r.publisherConn
 	r.mu.Unlock()
 
 	// Viewers are sent a fresh snapshot rather than being disconnected: a

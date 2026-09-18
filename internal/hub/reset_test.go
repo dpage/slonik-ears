@@ -128,3 +128,36 @@ func TestAListenerStillNamesARoomNobodyHasEdited(t *testing.T) {
 		t.Errorf("an unpinned room should follow its listener: %+v", got)
 	}
 }
+
+func TestResetKeepsTheRoomLookingLive(t *testing.T) {
+	// Live and Viewers are computed rather than stored, so a snapshot built
+	// from a bare copy of the room's info claims nothing is publishing and
+	// nobody is watching. A viewer receiving that carries on receiving
+	// transcript whilst its badge reads "waiting for room", directly above the
+	// words the speaker is saying.
+	h := hub.New(hub.Options{History: 10})
+	room := h.Ensure("main-hall")
+	epoch := room.AttachPublisher(protocol.Room{Title: "Main Hall"})
+
+	sub := room.Subscribe(0)
+	defer sub.Close()
+	<-sub.C() // the snapshot sent on subscribing
+
+	room.Reset()
+
+	msg := <-sub.C()
+	if msg.Room == nil {
+		t.Fatal("the reset snapshot carried no room")
+	}
+	if !msg.Room.Live {
+		t.Error("the room was reported as not live whilst a listener was connected")
+	}
+	if msg.Room.Viewers != 1 {
+		t.Errorf("viewers reported as %d, want 1", msg.Room.Viewers)
+	}
+
+	// And it really is still live: the listener carries on publishing.
+	if _, err := room.AddSegment(epoch, protocol.Segment{Text: "still here"}); err != nil {
+		t.Fatalf("the publisher was locked out: %v", err)
+	}
+}
