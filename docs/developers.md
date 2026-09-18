@@ -111,6 +111,37 @@ publishes it to
 A change to the code alone does not, since the code cannot alter the
 rendered site.
 
+## Continuous integration
+
+Four workflows run against the repository, and between them they cover
+everything `make lint`, `make vuln` and `make smoke` do locally.
+
+The following table describes what each workflow does and when:
+
+| Workflow | When | What |
+| --- | --- | --- |
+| `ci.yml` | Every push and pull request | Formatting, vet and golangci-lint; the tests under the race detector on Linux and macOS; govulncheck and npm audit; the web build; and an end to end run that publishes a transcript through a real server and drives the attendee views in a real browser. |
+| `docker.yml` | Main, tags, and changes to the Dockerfile | Builds the image, runs it, checks that it serves the application and is not running as root, then publishes a multi-architecture image to the GitHub container registry. |
+| `docs.yml` | Changes to the documentation | Builds the site with `--strict`, and publishes it to GitHub Pages when the change lands on `main`. |
+| `release.yml` | A tag beginning with `v` | Cross-compiles the server for Linux, macOS and Windows, builds the listener natively on each platform that needs cgo, and attaches the tarballs and `SHA256SUMS` to a GitHub release. |
+
+Dependabot groups its updates weekly, so a quiet week produces one pull
+request rather than nine.
+
+## Cutting a release
+
+A release is made by tagging. Push an annotated tag and the release
+workflow does the rest:
+
+```bash
+git tag -a v0.1.0 -m "First release"
+git push origin v0.1.0
+```
+
+To check the packaging without publishing anything, run `release.yml`
+manually from the Actions tab; a manual run builds every artifact and
+stops short of creating the release.
+
 ## Contributing
 
 Contributions are welcome. Work on a branch, open a pull request

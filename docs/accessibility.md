@@ -21,12 +21,24 @@ talk:
 - Interim text appears in a lighter style so a guess is never mistaken
   for a quotation.
 
+On a phone, which is where most of the audience reads, the controls
+collapse behind a single Display button so that the transcript keeps
+the screen:
+
+![The attendee view on a phone, showing three paragraphs of transcript with
+the last line in a lighter italic style, and share, download and subtitle
+buttons below](img/screens/room-phone.png){ width="320" }
+
 ## What the stage display provides
 
 The display beside the stage shows a few lines in large type, sized for
 the back of the room. It carries a QR code so anybody who prefers to
 read on their own device can pick up the same transcript without a URL
 being read aloud.
+
+![The stage display: two sentences in large white type on black, the most
+recent line in grey, and a QR code captioned "Follow along on your
+phone"](img/screens/stage.png)
 
 The number of lines, the text size and whether the QR code appears are
 all adjustable from the URL, which the Managing Rooms document

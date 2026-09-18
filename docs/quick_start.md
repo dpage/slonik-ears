@@ -24,13 +24,26 @@ is downloaded and no microphone is opened.
 
 ## What to look at
 
-Open <http://localhost:8080> and work through the views:
+Open <http://localhost:8080> and work through the views.
 
-- The lobby lists every room, with live rooms first.
-- The room page shows the transcript as an attendee sees it, with
-  reading controls for text size and theme.
-- The stage display at `/r/demo/stage` shows a few lines in large type
-  with a QR code for the audience.
+The lobby lists every room, with the live ones first, so an attendee
+who scanned a code in the corridor can find the talk they are in:
+
+![The lobby, listing two live rooms and one idle room as cards carrying the
+track, the speaker and the number of lines transcribed](img/screens/lobby.png)
+
+The room page shows the transcript as an attendee sees it, with reading
+controls for text size, theme and timestamps. Committed text is
+regrouped into sentences, and the unconfirmed line at the end appears
+in a lighter style:
+
+![The attendee view of a room, showing the transcript as paragraphs with the
+reading controls above and share, download and subtitle buttons
+below](img/screens/room.png)
+
+The stage display at `/r/demo/stage` shows a few lines in large type
+with a QR code for the audience, which the Accessibility document
+illustrates.
 
 Press Ctrl-C in the terminal to stop the demo.
 
