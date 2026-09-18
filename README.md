@@ -548,15 +548,17 @@ A few decisions worth knowing about:
 
 ## Documentation
 
-The full documentation set lives in `docs/` and is built with
-[MkDocs](https://www.mkdocs.org/) and the Material theme. It covers
+The documentation is published at
+[dpage.github.io/slonik-ears](https://dpage.github.io/slonik-ears/),
+built from `docs/` with [MkDocs](https://www.mkdocs.org/) and the
+Material theme. It covers
 installation, choosing a model, capturing audio, running an event,
 tuning transcription, the HTTP API, and troubleshooting.
 
 To read it locally:
 
 ```bash
-pip install mkdocs-material
+pip install -r requirements-docs.txt
 mkdocs serve
 ```
 

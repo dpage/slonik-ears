@@ -1,5 +1,6 @@
 site_name: Slonik Ears
 site_description: Live transcription for multi-track events.
+site_url: https://dpage.github.io/slonik-ears/
 site_author: Dave Page
 
 extra_css:

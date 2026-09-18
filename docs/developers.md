@@ -91,16 +91,25 @@ make web-test
 
 ## Building the documentation
 
-The documentation is built with MkDocs and the Material theme. Install
-both, then serve the site locally:
+The documentation is built with MkDocs and the Material theme. The
+versions are pinned, so install them from the requirements file and
+serve the site locally:
 
 ```bash
-pip install mkdocs-material
+pip install -r requirements-docs.txt
 mkdocs serve
 ```
 
-Building with `mkdocs build --strict` fails on broken links, which is
-what continuous integration checks.
+Building with `mkdocs build --strict` fails on a broken link or a page
+missing from the navigation, which is what continuous integration
+checks on every pull request that touches the documentation.
+
+Publication happens automatically. A change to `docs/`, `mkdocs.yml` or
+the requirements file that lands on `main` rebuilds the site and
+publishes it to
+[dpage.github.io/slonik-ears](https://dpage.github.io/slonik-ears/).
+A change to the code alone does not, since the code cannot alter the
+rendered site.
 
 ## Contributing
 
