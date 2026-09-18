@@ -100,6 +100,8 @@ being told that it is a machine transcript with the errors that implies.
 | Room shows live but nothing appears after a restart | a second listener took over the room; the first is told and stops |
 | Listener logs "publisher disconnected ... connection refused" on a loop | wrong `--server` address, or the relay is not running. The listener keeps transcribing and buffers the text, so fix the address and restart it — nothing said so far is lost if `--transcript` was set |
 | Ctrl-C does not seem to stop the listener | it is finishing the last transcription, or waiting on the relay. It says which. Press Ctrl-C again to exit immediately |
+| Lines nobody said: "Thank you.", or ♪ song lyrics ♪ | the detector is committing chunks of an empty room, and the model fills them in rather than returning nothing. Raise `--min-rms` until the heartbeat's `level` during silence sits below `start_threshold` |
+| A quiet speaker is missed entirely | the opposite: lower `--min-rms`. Check first that the input is not simply too quiet, which the start-up channel report will tell you |
 | Sentences arrive chopped in half, or a long one stops partway through | the speaker is too quiet for the detector. Run with `--log-level debug` and compare `level` against `start_threshold` in the heartbeat: speech should peak at several times the threshold rather than brushing against it. Raise the gain on the interface first, and only then reach for the detector's settings |
 
 ## Turning a room around between talks

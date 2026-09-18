@@ -72,6 +72,21 @@ partial_ms: 900
 no_partials: false
 pre_roll_ms: 320
 
+# Voice detection: what counts as somebody talking. min_rms is the one to reach
+# for. Below it nothing is ever speech, so too high ignores a quiet speaker and
+# too low sends the room's own noise to the model — which does not answer "there
+# was nothing there" but invents something, which is where stray "Thank you."
+# lines and hallucinated song lyrics come from.
+#
+# Measured over a recording with known silent and spoken stretches, on a
+# correctly levelled input: the empty room sits at 0.0016 to 0.005 and speech
+# runs 0.06 to 0.25. The default sits in the gap. Run the listener with
+# --log-level debug and compare "level" against "start_threshold" in the
+# heartbeat if you need to move it.
+min_rms: 0.012
+start_factor: 3.0
+stop_factor: 1.8
+
 # A local copy of every committed line, in case the network has other ideas.
 transcript_file: "main-hall.jsonl"
 log_level: "info"
