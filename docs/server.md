@@ -15,6 +15,9 @@ that is the case until proven otherwise, and put the server on a small
 cloud instance with a name in DNS and a certificate in place before the
 morning of the event.
 
+On a cloud instance the published container image is usually the
+quickest route, and the Running in a Container document covers it.
+
 ## Starting the server
 
 The server needs a publish token before any listener can connect. Create
@@ -111,3 +114,5 @@ count, which suits whatever monitoring you already run.
   turn a room around between talks.
 - The Server Options document lists every flag, environment variable
   and configuration key.
+- The Running in a Container document covers the published image, its
+  volumes and upgrading it between events.

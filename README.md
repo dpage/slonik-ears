@@ -93,6 +93,9 @@ make model MODEL=large-v3
 ```
 
 Then start `whisper-server`, `ears-server` and `ears-listener`, in that order.
+For the relay on a cloud instance there is a published container image,
+`ghcr.io/dpage/slonik-ears`, covered in
+[Running in a Container](docs/containers.md).
 The [Event Checklist](docs/running_an_event.md) is the full walkthrough,
 including what to do the week before, and the
 [Choosing a Model](docs/models.md) page has measured accuracy and speed
@@ -140,6 +143,7 @@ The individual pages are readable as plain Markdown without building anything:
 | [Choosing a Model](docs/models.md) | Measured accuracy and speed on different machines |
 | [Capturing Audio](docs/audio.md) | Devices, channels, levels and permissions |
 | [Running the Server](docs/server.md) | Tokens, persistence and where to run the relay |
+| [Running in a Container](docs/containers.md) | The published image, its configuration and its storage |
 | [Running a Listener](docs/listener.md) | Starting a room and describing it |
 | [Managing Rooms](docs/rooms.md) | Turning a room around between talks |
 | [Listener Options](docs/listener_reference.md) | Every listener flag and configuration key |

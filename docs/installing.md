@@ -90,9 +90,17 @@ The `deploy/` directory contains a LaunchAgent example for macOS. The
 listener must run as an agent rather than a daemon, because microphone
 access on macOS belongs to a logged-in session and a daemon has none.
 
-A container image is also available for the server, built from
-`deploy/Dockerfile`. The listener is deliberately not containerised,
-since it needs direct access to the host's audio hardware.
+A container image of the server is published to the GitHub container
+registry, and is usually the easiest way to run the relay on a cloud
+instance:
+
+```bash
+docker pull ghcr.io/dpage/slonik-ears:latest
+```
+
+The Running in a Container document covers it properly. The listener is
+deliberately not containerised, since it needs direct access to the
+host's audio hardware and to a model server beside it.
 
 ## Next Steps
 
@@ -101,3 +109,5 @@ since it needs direct access to the host's audio hardware.
 - The Capturing Audio document explains device selection and input
   levels.
 - The Running the Server document covers tokens and persistence.
+- The Running in a Container document covers the published image, its
+  configuration and its storage.
