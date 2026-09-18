@@ -94,6 +94,10 @@ vuln:
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
 	cd web && $(NPM) audit --omit=dev --audit-level=high
 
+## web-test: unit tests for the attendee app (node's own runner, no extra deps)
+web-test:
+	cd web && $(NPM) test
+
 ## smoke: drive the attendee views in a real browser against a running demo
 smoke: web server
 	@EARS_PUBLISH_TOKEN=smoke-token ./$(BIN)/ears-server --addr 127.0.0.1:8099 & \
