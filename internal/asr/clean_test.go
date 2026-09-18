@@ -67,3 +67,38 @@ func TestCleanDropsOutputWithNoWordsInIt(t *testing.T) {
 		}
 	}
 }
+
+func TestCleanDropsHallucinatedMusic(t *testing.T) {
+	// Straight from a room that had been reset and was sitting in silence:
+	// large-v3 invented a lyric and marked it as music. The whole-string
+	// annotation check could not see it, because with two ♪ spans there is
+	// always a ♪ in the middle.
+	for _, s := range []string{
+		"♪ Waiting at the master ♪ ♪ Waiting at the master ♪",
+		"♪ Waiting at the master ♪ ♪ Waiting at the master ♪ ♪ Waiting at the master ♪",
+		"♪ Waiting at the master ♪",
+		"♪♪♪",
+		"♫ la la la ♫",
+		"I can hear 🎵 something 🎵 now",
+	} {
+		if got := CleanTranscript(s); got != "" {
+			t.Errorf("CleanTranscript(%q) = %q, want it discarded", s, got)
+		}
+	}
+}
+
+func TestCleanKeepsSpeechAroundAnAnnotation(t *testing.T) {
+	// An annotation in the middle of a sentence is a gap in the speech, not a
+	// reason to throw the sentence away.
+	for _, tc := range []struct{ in, want string }{
+		{"so we ran it [BLANK_AUDIO] overnight", "so we ran it overnight"},
+		{"the results (applause) were good", "the results were good"},
+		{"[BLANK_AUDIO] and then it worked", "and then it worked"},
+		{"[BLANK_AUDIO] [BLANK_AUDIO]", ""},
+		{"(applause) (laughter)", ""},
+	} {
+		if got := CleanTranscript(tc.in); got != tc.want {
+			t.Errorf("CleanTranscript(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
