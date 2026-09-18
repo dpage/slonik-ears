@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,9 +32,15 @@ type Config struct {
 
 	// Where the audio comes from.
 	Device string `yaml:"device"`
-	File   string `yaml:"file"`
-	Loop   bool   `yaml:"loop"`
-	Fast   bool   `yaml:"fast"`
+	// Channel selects which input channel or channels of a multichannel
+	// device carry the microphone, 1-based as printed on the front of an
+	// interface, comma separated. Averaging several is what a genuine stereo
+	// microphone wants ("1,2"). Empty means listen briefly and take whichever
+	// channel has the most signal.
+	Channel string `yaml:"channel"`
+	File    string `yaml:"file"`
+	Loop    bool   `yaml:"loop"`
+	Fast    bool   `yaml:"fast"`
 
 	// Vocabulary is the glossary fed to the model so that it spells the
 	// jargon the way the audience does. Setting it replaces the built-in
@@ -104,6 +111,7 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Language, "language", c.Language, `spoken language as an ISO-639-1 code, or "auto"`)
 
 	fs.StringVar(&c.Device, "device", c.Device, "capture device index, id, or part of its name (default: system default)")
+	fs.StringVar(&c.Channel, "channel", c.Channel, "input channel(s) of a multichannel device, 1-based and comma separated (default: whichever is loudest)")
 	fs.StringVar(&c.File, "file", c.File, "replay a WAV file instead of capturing audio (for testing)")
 	fs.BoolVar(&c.Loop, "loop", c.Loop, "loop the replayed file")
 	fs.BoolVar(&c.Fast, "fast", c.Fast, "replay the file as fast as possible rather than in real time")
@@ -168,6 +176,7 @@ func (c *Config) LoadFile(path string, fs *flag.FlagSet) error {
 	overlay("speaker", func() { c.Speaker = cmdline.Speaker })
 	overlay("language", func() { c.Language = cmdline.Language })
 	overlay("device", func() { c.Device = cmdline.Device })
+	overlay("channel", func() { c.Channel = cmdline.Channel })
 	overlay("file", func() { c.File = cmdline.File })
 	overlay("loop", func() { c.Loop = cmdline.Loop })
 	overlay("fast", func() { c.Fast = cmdline.Fast })
@@ -239,6 +248,9 @@ func (c Config) Validate(dryRun bool) error {
 	if c.File != "" && c.Device != "" {
 		return fmt.Errorf("--file and --device are mutually exclusive")
 	}
+	if _, err := c.Channels(); err != nil {
+		return err
+	}
 	if c.Record != "" && c.File != "" {
 		return fmt.Errorf("--record and --file are mutually exclusive: the audio is already in a file")
 	}
@@ -284,6 +296,26 @@ func readVocabularyFile(path string) ([]string, error) {
 		return nil, fmt.Errorf("vocabulary file %s has no terms in it", path)
 	}
 	return terms, nil
+}
+
+// Channels parses the --channel list into 1-based channel numbers.
+func (c Config) Channels() ([]int, error) {
+	if strings.TrimSpace(c.Channel) == "" {
+		return nil, nil
+	}
+	var out []int
+	for _, part := range strings.Split(c.Channel, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("--channel %q is not usable: give channel numbers as they are printed on the interface, such as 1 or 1,2", c.Channel)
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }
 
 // EngineConfig converts to the engine's configuration. The glossary is passed

@@ -281,6 +281,27 @@ Better, in ascending order:
   option by a distance: it is the same signal the PA is amplifying, with no
   room acoustics and no audience in it. Select it with `--device "Scarlett"`
   or whatever `--list-devices` calls it.
+
+  **On a multichannel interface, check which input the listener picked.** A
+  device like a TASCAM US-16x08 offers sixteen channels and no mono format at
+  all, so it matters which one is read. The listener measures every channel at
+  start-up, uses whichever is loudest, and says so:
+
+  ```
+  msg="input channels measured" device_channels=16 using=[1] ch1=0.084
+  ```
+
+  Override it with `--channel 3` if the microphone is on input 3 and the room
+  happened to be quiet whilst it was deciding, or `--channel 1,2` to average a
+  genuine stereo pair. It also warns when an input is clipping or nearly
+  silent, which is worth reading before blaming the transcript:
+
+  ```
+  msg="the input is clipping: turn the gain down on the interface" channel=1 peak=1.015
+  ```
+
+  Aim for a peak somewhere around 0.5. Clipped speech transcribes noticeably
+  worse and nothing downstream can put back what the converter discarded.
 * **A lapel or headset microphone** into the same interface.
 * **A virtual device** such as BlackHole or Loopback, if the audio you want is
   already playing on the Mac — a video call, or a media player. macOS will not
