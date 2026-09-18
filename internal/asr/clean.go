@@ -43,6 +43,23 @@ var junkOutputs = map[string]bool{
 // "[BLANK_AUDIO]", "(applause)" or "♪♪♪".
 var bracketed = regexp.MustCompile(`^[\[\(\*♪<]+[^\]\)\*♪>]*[\]\)\*♪>]+$`)
 
+// annotationSpan matches a non-speech annotation wherever it sits in a line,
+// rather than only when it is the whole of it.
+//
+// Whisper does not confine itself to one per line, and the whole-string check
+// above cannot see a second: its middle section is defined as containing no
+// closing marker, and with two spans there always is one. So "[BLANK_AUDIO]
+// [BLANK_AUDIO]" was caught but "♪ Waiting at the master ♪ ♪ Waiting at the
+// master ♪" was not, and went up on a screen at the front of a room.
+var annotationSpan = regexp.MustCompile(`[\[\(][^\]\)]*[\]\)]|♪[^♪]*♪`)
+
+// musicalNote catches the markers Whisper uses for singing and music. Handed a
+// silent room, a large model will invent song lyrics and label them as music;
+// there is no conference transcript that wants them, because either the model
+// is hallucinating or somebody is playing a video, and in neither case are the
+// words the speaker's.
+var musicalNote = regexp.MustCompile(`[♪♫♬♩🎵🎶]`)
+
 // CleanTranscript tidies a raw model output and returns "" for anything that
 // is plainly not speech from the room.
 func CleanTranscript(s string) string {
@@ -76,6 +93,23 @@ func CleanTranscript(s string) string {
 	// normalise, which keeps hyphens on purpose and so would let "--" past.
 	if !hasWordCharacter(s) {
 		return ""
+	}
+
+	// Anything marked as music goes, whole line and all. The marked span is
+	// not the speaker talking, and what surrounds it is invariably more of the
+	// same hallucination rather than a sentence worth rescuing.
+	if musicalNote.MatchString(s) {
+		return ""
+	}
+
+	// Annotations elsewhere in the line are dropped and the real speech either
+	// side of them kept: "so we ran it [BLANK_AUDIO] overnight" is a sentence
+	// with a gap in it, not a non-speech event.
+	if annotationSpan.MatchString(s) {
+		s = strings.Join(strings.Fields(annotationSpan.ReplaceAllString(s, " ")), " ")
+		if !hasWordCharacter(s) {
+			return ""
+		}
 	}
 
 	if junkOutputs[normalise(s)] {
