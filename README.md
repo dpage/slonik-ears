@@ -147,6 +147,23 @@ whisper-server \
 the relay wants to live, so give it 8081 explicitly or the second process to
 start will fail to bind. `make whisper-server` runs exactly this command.
 
+**Give it a voice detection model too.** `make vad-model` fetches Silero, which
+is under a megabyte, and then:
+
+```bash
+whisper-server \
+  --model ~/.cache/whisper/ggml-large-v3.bin \
+  --host 127.0.0.1 --port 8081 --threads 8 \
+  --vad --vad-model ~/.cache/whisper/ggml-silero-v5.1.2.bin
+```
+
+Run the listener with `--whisper-vad` and a chunk containing no speech comes
+back empty instead of being invented. Handed half a second of room noise,
+whisper answers "Thank you." or a full stop; with the voice model it answers
+nothing, and does so in 31 ms rather than 490 ms because it never runs the
+model at all. Both are worth having: the transcript stops acquiring lines
+nobody said, and the machine stops spending its time on them.
+
 Leave it running. It loads the model once and then answers requests.
 
 ### Terminal 2 — the relay and web app
