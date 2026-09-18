@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useConfig } from '../App'
 import ConnectionBadge from '../components/ConnectionBadge'
+import RoomBadge from '../components/RoomBadge'
 import { useLobby } from '../hooks/useLobby'
 import type { Room } from '../types'
 
@@ -66,10 +67,7 @@ function RoomCard({ room }: { room: Room }) {
       <Link to={`/r/${room.id}`}>
         <div className="room-card-head">
           <h3>{room.title || room.id}</h3>
-          <span className={`badge badge-${room.live ? 'live' : 'waiting'}`}>
-            <span className="badge-dot" aria-hidden="true" />
-            {room.live ? 'Live' : 'Idle'}
-          </span>
+          <RoomBadge live={room.live} />
         </div>
         {room.track && <p className="room-track">{room.track}</p>}
         {room.speaker && <p className="room-speaker">{room.speaker}</p>}

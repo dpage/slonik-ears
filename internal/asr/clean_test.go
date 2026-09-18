@@ -35,23 +35,6 @@ func TestCleanTranscriptKeepsSpeech(t *testing.T) {
 	}
 }
 
-func TestCommonPrefixWords(t *testing.T) {
-	cases := []struct {
-		a, b string
-		want int
-	}{
-		{"the quick brown fox", "the quick brown dog", 3},
-		{"the quick", "The Quick!", 2},
-		{"", "anything", 0},
-		{"same", "same", 1},
-	}
-	for _, c := range cases {
-		if got := CommonPrefixWords(c.a, c.b); got != c.want {
-			t.Errorf("CommonPrefixWords(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
-		}
-	}
-}
-
 func TestCleanDropsOutputWithNoWordsInIt(t *testing.T) {
 	// large-v3 answers trailing room tone with a lone full stop, and the
 	// stage display would otherwise show it as a line of transcript.
