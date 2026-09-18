@@ -78,6 +78,15 @@ type Room struct {
 	// stale listener's writes can be rejected.
 	publisherEpoch int64
 	publisherConn  bool
+	// resetAtCursor is the sequence number the room had reached when it was
+	// last reset. Anything at or below it belongs to a talk that no longer
+	// exists, so a viewer holding it has to start again rather than resume.
+	resetAtCursor int64
+	// removed records that the room has been taken out of the hub. A publisher
+	// holds its *Room directly, so without this it carries on committing
+	// segments to a room nobody can see and recreating the transcript file
+	// that removing it just archived.
+	removed bool
 	// pinned* records that a person set this field through the admin API, so
 	// that a reconnecting listener repeating its start-up flags cannot quietly
 	// undo them.
@@ -177,6 +186,10 @@ func (h *Hub) Remove(id string) bool {
 		return false
 	}
 	r.mu.Lock()
+	// Marked before the subscribers go, so a publisher that commits a segment
+	// during the shutdown is refused rather than writing to a room that is on
+	// its way out.
+	r.removed = true
 	subs := make([]*Subscriber, 0, len(r.subs))
 	for s := range r.subs {
 		subs = append(subs, s)
@@ -385,10 +398,19 @@ func (r *Room) Cursor() int64 {
 // to publish.
 var ErrStalePublisher = fmt.Errorf("publisher superseded by a newer listener")
 
+// ErrRoomRemoved is returned when a listener publishes to a room an organiser
+// has taken out of the hub. It is separate from ErrStalePublisher because the
+// listener should stop rather than assume another machine has taken over.
+var ErrRoomRemoved = fmt.Errorf("room has been removed")
+
 // AddSegment commits a segment. The hub assigns the sequence number so that
 // cursors are authoritative even across listener restarts.
 func (r *Room) AddSegment(epoch int64, seg protocol.Segment) (protocol.Segment, error) {
 	r.mu.Lock()
+	if r.removed {
+		r.mu.Unlock()
+		return protocol.Segment{}, ErrRoomRemoved
+	}
 	if epoch != 0 && r.publisherEpoch != epoch {
 		r.mu.Unlock()
 		return protocol.Segment{}, ErrStalePublisher
@@ -438,9 +460,17 @@ func (r *Room) Restore(segs []protocol.Segment) {
 	}
 }
 
-// Reset empties a room for the next talk: the transcript goes, the sequence
-// numbering starts again from one, and any viewer still watching is brought
-// back to an empty screen.
+// Reset empties a room for the next talk: the transcript goes and any viewer
+// still watching is brought back to an empty screen.
+//
+// The sequence numbering deliberately carries on rather than starting again
+// from one. A viewer that was disconnected across the reset resumes by asking
+// for everything after the last number it saw, and if the numbering restarted
+// then segment 50 of this talk is indistinguishable from segment 50 of the
+// last one: once the new talk passed the viewer's old position the server
+// would answer as though nothing had happened, and the phone would splice the
+// two talks together. Numbers that only ever climb make that question
+// answerable.
 //
 // The publisher's epoch is deliberately left alone, so a listener that is
 // already connected carries straight on into the new talk without needing to
@@ -450,7 +480,7 @@ func (r *Room) Reset() {
 	r.mu.Lock()
 	r.segments = nil
 	r.partial = nil
-	r.info.Cursor = 0
+	r.resetAtCursor = r.info.Cursor
 	r.info.StartedAt = nowMs()
 	r.info.LastActivity = nowMs()
 	subs := make([]*Subscriber, 0, len(r.subs))
@@ -486,6 +516,10 @@ func (r *Room) Reset() {
 // SetPartial publishes the in-flight hypothesis.
 func (r *Room) SetPartial(epoch int64, p protocol.Partial) error {
 	r.mu.Lock()
+	if r.removed {
+		r.mu.Unlock()
+		return ErrRoomRemoved
+	}
 	if epoch != 0 && r.publisherEpoch != epoch {
 		r.mu.Unlock()
 		return ErrStalePublisher
@@ -532,6 +566,35 @@ func (r *Room) SetStatus(epoch int64, st protocol.Status) {
 	r.broadcast(protocol.Message{Type: protocol.TypeStatus, Status: &st})
 }
 
+// resumeIsBroken reports whether a viewer resuming from `since` would end up
+// with a transcript that is not continuous. A viewer holding nothing yet
+// (since zero) is always fine: it is being sent whatever the room has.
+func resumeIsBroken(since, cursor, resetAt int64, segs []protocol.Segment) bool {
+	if since <= 0 {
+		return false
+	}
+	// Ahead of the room, which should not happen, but merging on top of it
+	// certainly would not help.
+	if since > cursor {
+		return true
+	}
+	// Everything at or below the last reset belongs to a talk that has been
+	// archived. The viewer is still holding it, whether or not its position
+	// happens to line up with where the new talk has reached.
+	if since <= resetAt {
+		return true
+	}
+	if len(segs) == 0 {
+		// Nothing to send, so the viewer is up to date only if it is already
+		// standing where the room is.
+		return since != cursor
+	}
+	// The oldest segment on its way has to be the very next one the viewer is
+	// missing. A gap means the rest has been trimmed and is not coming, so the
+	// viewer must start again rather than stitch across it.
+	return segs[0].Seq > since+1
+}
+
 // History returns every retained segment with Seq > since, plus the current
 // partial and cursor.
 func (r *Room) History(since int64) ([]protocol.Segment, *protocol.Partial, int64) {
@@ -571,18 +634,22 @@ func (r *Room) Subscribe(since int64) *Subscriber {
 	r.mu.Unlock()
 
 	segs, partial, cursor := r.History(since)
+	r.mu.RLock()
+	resetAt := r.resetAtCursor
+	r.mu.RUnlock()
 	info := r.Info()
 	s.send(protocol.Message{
 		Type:    protocol.TypeSnapshot,
 		Version: protocol.Version,
 		Room:    &info,
-		// A viewer asking to resume from beyond where the room now is has
-		// lived through a reset and is still holding the last talk. Tell it to
-		// start over rather than merge. Deciding this from the cursor rather
-		// than by announcing the reset means it self-heals: a phone that was
-		// in somebody's pocket throughout gets the same treatment when it
-		// eventually reconnects.
-		Reset:      since > cursor,
+		// Tell the viewer to start over unless what it is holding joins up
+		// with what it is about to be sent. It does not join up if the room
+		// has been reset since (the retained history no longer reaches back
+		// to the viewer's position), if the history has been trimmed past it
+		// on a long talk, or if the viewer somehow holds more than the room
+		// does. Merging in any of those cases leaves the reader with two
+		// talks run together, or with a silent hole in the middle of one.
+		Reset:      resumeIsBroken(since, cursor, resetAt, segs),
 		Segments:   segs,
 		Partial:    partial,
 		Cursor:     cursor,

@@ -120,3 +120,71 @@ func TestArchiveIsHappyWithNothingToDo(t *testing.T) {
 func contains(haystack, needle string) bool {
 	return strings.Contains(haystack, needle)
 }
+
+// TestArchiveIsAtomicAgainstAConcurrentAppend is the concurrent version of
+// TestAppendAfterArchiveStartsAFreshFile. Closing the writer is not enough on
+// its own: a segment arriving between the close and the rename reopens the
+// file that is about to be moved, so the descriptor follows it into the
+// archive and every later segment is written there instead.
+//
+// The observable symptom is that the live transcript never comes back. A
+// speaker still finishing a sentence when the organiser presses Reset is
+// enough to trigger it.
+func TestArchiveIsAtomicAgainstAConcurrentAppend(t *testing.T) {
+	for attempt := range 200 {
+		dir := t.TempDir()
+		s, err := NewFile(dir, testLogger())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		s.Append("main-hall", seg(1, "the first talk"))
+
+		// One goroutine keeps publishing while the other archives, which is
+		// what a reset mid-sentence looks like.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for i := range 50 {
+				s.Append("main-hall", seg(int64(i+2), "still talking"))
+			}
+		}()
+		if err := s.Archive("main-hall"); err != nil {
+			t.Fatal(err)
+		}
+		<-done
+		if err := s.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Whatever landed either side of the rename, the segments written
+		// after it must be in the live file and not in the archive.
+		live, err := os.ReadFile(filepath.Join(dir, "main-hall.jsonl"))
+		if err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		archives, err := filepath.Glob(filepath.Join(dir, ArchiveDir, "main-hall-*.jsonl"))
+		if err != nil || len(archives) == 0 {
+			t.Fatalf("attempt %d: expected an archived file, got %v (%v)", attempt, archives, err)
+		}
+		archived, err := os.ReadFile(archives[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		lines := strings.Count(string(live), "\n")
+		archivedLines := strings.Count(string(archived), "\n")
+		if lines+archivedLines != 51 {
+			t.Fatalf("attempt %d: %d segments survived, expected 51 (%d live, %d archived)",
+				attempt, lines+archivedLines, lines, archivedLines)
+		}
+		// The archive holds the old talk. Anything the appender wrote after
+		// the rename belongs in the live file, so once the rename has
+		// happened the archive must stop growing: a live file that never
+		// appears at all is the descriptor having followed the rename.
+		if archivedLines > 1 && lines == 0 {
+			t.Fatalf("attempt %d: every segment went into the archive and the live "+
+				"transcript was never recreated", attempt)
+		}
+	}
+}
