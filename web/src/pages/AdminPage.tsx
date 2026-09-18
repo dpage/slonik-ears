@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useConfig } from '../App'
 import { ApiError, deleteRoom, fetchAdminRooms, resetRoom, submitAdminToken, updateRoom } from '../api'
+import RoomBadge from '../components/RoomBadge'
 import type { Room } from '../types'
 
 /**
@@ -149,10 +150,7 @@ function AdminRoom({
         <h2>
           <code>{room.id}</code>
         </h2>
-        <span className={`badge ${room.live ? 'badge-live' : 'badge-offline'}`}>
-          <span className="badge-dot" />
-          {room.live ? 'Live' : 'Idle'}
-        </span>
+        <RoomBadge live={room.live} />
         <span className="small muted">
           {room.cursor} line{room.cursor === 1 ? '' : 's'} · {room.viewers} watching
         </span>

@@ -95,18 +95,15 @@ type MicSource struct {
 	err     error
 }
 
-// OpenMic starts capturing from the named device. An empty selector uses the
-// system default; otherwise the selector matches a device by index ("2"), by
-// exact id, or by a case-insensitive substring of its name ("blackhole").
-func OpenMic(selector string) (*MicSource, error) {
-	return OpenMicChannels(selector, nil)
-}
-
-// OpenMicChannels is OpenMic with an explicit choice of input channels, given
-// 1-based as a person reads them off the front of an interface. More than one
-// is averaged, which is what a genuine stereo microphone wants ("1,2"). An
-// empty list means listen to every channel for a moment and take whichever is
-// carrying the most signal.
+// OpenMicChannels starts capturing from the named device. An empty selector
+// uses the system default; otherwise the selector matches a device by index
+// ("2"), by exact id, or by a case-insensitive substring of its name
+// ("blackhole").
+//
+// Channels are given 1-based, as a person reads them off the front of an
+// interface. More than one is averaged, which is what a genuine stereo
+// microphone wants ("1,2"). An empty list means listen to every channel for a
+// moment and take whichever is carrying the most signal.
 func OpenMicChannels(selector string, wanted []int) (*MicSource, error) {
 	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, nil)
 	if err != nil {

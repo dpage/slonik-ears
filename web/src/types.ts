@@ -1,7 +1,6 @@
 // Mirrors internal/protocol in the Go server. Keep the two in step: the
 // server is the source of truth.
 
-export const PROTOCOL_VERSION = 1
 
 export interface Room {
   id: string

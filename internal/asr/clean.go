@@ -182,18 +182,6 @@ func normalise(s string) string {
 	return strings.TrimSpace(strings.Join(strings.Fields(b.String()), " "))
 }
 
-// CommonPrefixWords returns the number of leading words shared by a and b.
-// The chunker uses it to tell whether a new partial is an extension of the
-// previous one (so the display can update smoothly) or a fresh thought.
-func CommonPrefixWords(a, b string) int {
-	aw, bw := strings.Fields(a), strings.Fields(b)
-	n := 0
-	for n < len(aw) && n < len(bw) && strings.EqualFold(trimPunct(aw[n]), trimPunct(bw[n])) {
-		n++
-	}
-	return n
-}
-
 func trimPunct(s string) string {
 	return strings.TrimFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
 }
