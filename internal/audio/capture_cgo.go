@@ -4,6 +4,7 @@ package audio
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -159,7 +160,15 @@ func OpenMicChannels(selector string, wanted []int) (*MicSource, error) {
 		ctx:    ctx,
 	}
 
-	device, err := malgo.InitDevice(ctx.Context, cfg, malgo.DeviceCallbacks{Data: s.onFrames})
+	// The Stop callback matters as much as the Data one. Without it, a device
+	// that goes away mid-talk (a USB interface unplugged, an input reclaimed
+	// by another application) simply stops calling back: the frames channel
+	// stays open and empty, Err stays nil, and the listener sits there looking
+	// healthy whilst transcribing silence for the rest of the session.
+	device, err := malgo.InitDevice(ctx.Context, cfg, malgo.DeviceCallbacks{
+		Data: s.onFrames,
+		Stop: s.onStop,
+	})
 	if err != nil {
 		_ = ctx.Uninit()
 		ctx.Free()
@@ -293,6 +302,19 @@ func (s *MicSource) finishCalibration() {
 // chosen channel appears once every s.channels samples. Averaging across all
 // of them, which is what asking miniaudio for mono would have done, divides a
 // single live microphone by the number of sockets on the box.
+// onStop records that the device has stopped. Closing the frames channel is
+// deliberately left to Close, which is the only place that owns it and which
+// waits for the data callback to finish first; the watchdog in the listener
+// is what turns this into something the operator sees.
+func (s *MicSource) onStop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.err != nil {
+		return // an expected stop, on the way out through Close
+	}
+	s.err = errors.New("audio: the capture device stopped: it may have been unplugged or taken by another application")
+}
+
 func (s *MicSource) onFrames(_, input []byte, frameCount uint32) {
 	if frameCount == 0 || len(input) < 4 {
 		return

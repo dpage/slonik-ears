@@ -22,6 +22,22 @@ import (
 // enough that Ctrl-C feels like it did something.
 const maxShutdownWait = 15 * time.Second
 
+// noAudioTimeout is how long the engine tolerates hearing nothing at all from
+// the capture device before saying so. An empty room still produces frames, so
+// silence this complete is the device rather than the speaker. It has to clear
+// audio.CalibrationWindow, during which the device deliberately passes nothing
+// on whilst it works out which channel to listen to.
+const noAudioTimeout = 10 * time.Second
+
+// maxQueuedFinals caps the backlog of committed utterances waiting to be
+// transcribed. Each holds up to MaxUtteranceMs of audio, so an unbounded queue
+// against a model slower than real time is both a memory leak and a transcript
+// falling ever further behind the speaker. Dropping the oldest keeps what is
+// published tracking what is being said now, which is what an audience reading
+// it needs; the operator is told, because the alternative is a transcript with
+// a hole in it and nothing to say so.
+const maxQueuedFinals = 8
+
 // Publisher is the subset of Client the engine needs, so tests can substitute
 // something simpler.
 type Publisher interface {
@@ -206,6 +222,8 @@ func (e *Engine) Run(ctx context.Context) error {
 		dropper, _ := e.src.(audio.Dropper)
 		speaking := false
 		lastDropped := int64(0)
+		lastFrame := time.Now()
+		silentDevice := false
 		heartbeat := time.NewTicker(time.Second)
 		defer heartbeat.Stop()
 
@@ -214,6 +232,12 @@ func (e *Engine) Run(ctx context.Context) error {
 			case frame, ok := <-frames:
 				if !ok {
 					return e.src.Err()
+				}
+				lastFrame = time.Now()
+				if silentDevice {
+					silentDevice = false
+					e.setError("")
+					e.log.Info("the capture device is delivering audio again")
 				}
 				reqs, level := e.chunk.Push(frame)
 				e.setLevel(level)
@@ -230,6 +254,19 @@ func (e *Engine) Run(ctx context.Context) error {
 					e.enqueue(r)
 				}
 			case <-heartbeat.C:
+				// A capture device that goes away does not always say so: the
+				// callback simply stops being called, and without this the
+				// listener spends the rest of the talk looking healthy and
+				// transcribing nothing. Silence still arrives as frames, so a
+				// gap this long means the device, not the room.
+				if !silentDevice && time.Since(lastFrame) > noAudioTimeout {
+					silentDevice = true
+					e.setError("no audio from the capture device")
+					e.log.Error("no audio from the capture device; check that it is still connected",
+						"device", e.src.Name(),
+						"silent_for", time.Since(lastFrame).Round(time.Second),
+						"error", e.src.Err())
+				}
 				if dropper != nil {
 					if d := dropper.Dropped(); d > lastDropped {
 						// Not debug level: dropped frames are audio that no
@@ -334,6 +371,8 @@ func (e *Engine) logHeartbeat() {
 }
 
 func (e *Engine) enqueue(r audio.Request) {
+	dropped := 0
+	var lost time.Duration
 	e.mu.Lock()
 	switch r.Kind {
 	case audio.KindFinal:
@@ -341,12 +380,27 @@ func (e *Engine) enqueue(r audio.Request) {
 		// A pending partial belongs to the utterance we have just committed,
 		// so it is now worse than useless.
 		e.queuedPartia = nil
+		for len(e.queuedFinals) > maxQueuedFinals {
+			lost += time.Duration(e.queuedFinals[0].EndMs-e.queuedFinals[0].StartMs) * time.Millisecond
+			e.queuedFinals = e.queuedFinals[1:]
+			dropped++
+		}
 	case audio.KindPartial:
 		if len(e.queuedFinals) == 0 {
 			e.queuedPartia = &r
 		}
 	}
 	e.mu.Unlock()
+
+	if dropped > 0 {
+		// Warn rather than debug: this is speech that will never be
+		// transcribed, and whoever is running the event wants to know whilst
+		// the talk is still happening rather than afterwards.
+		e.log.Warn("the model cannot keep up: dropping the oldest audio waiting to be transcribed",
+			"utterances", dropped,
+			"audio_lost", lost.Round(time.Millisecond),
+			"queued", maxQueuedFinals)
+	}
 	select {
 	case e.wake <- struct{}{}:
 	default:

@@ -23,6 +23,20 @@ it is capturing silence. Check three things in order:
 3. Check the level reported at startup, and the heartbeat with
     `--log-level debug`.
 
+If the capture device has stopped delivering anything at all, rather
+than delivering silence, the listener says so within ten seconds and the
+room page carries the same notice:
+
+```
+level=ERROR msg="no audio from the capture device; check that it is
+still connected" device="microphone: Scarlett Solo USB"
+```
+
+An empty room still produces audio frames, so this means the device
+itself has gone: an interface unplugged, or an input taken by another
+application. Reconnect it and the listener picks up again by itself,
+saying so; nothing needs restarting.
+
 ### The input is clipping
 
 The listener warns when the peak reaches full scale. Turn the gain down
@@ -68,6 +82,19 @@ it. Raise the gain before adjusting the detector.
 The model is not keeping up. Check the `speed` figure the listener logs
 with each segment; below 1 means the model is slower than the speaker.
 Move down a model size, or turn off previews with `--no-partials`.
+
+Left alone, the backlog of audio waiting to be transcribed is capped at
+eight utterances, and the oldest is dropped to keep the transcript
+tracking what is being said now. That is speech nobody will ever read,
+so the listener warns each time it happens:
+
+```
+level=WARN msg="the model cannot keep up: dropping the oldest audio
+waiting to be transcribed" utterances=1 audio_lost=8.4s
+```
+
+Seeing that line means the model is the wrong size for the machine, and
+no amount of waiting will let it catch up.
 
 ### Text arrives many seconds late on a small machine
 
