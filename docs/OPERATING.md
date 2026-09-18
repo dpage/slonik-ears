@@ -86,6 +86,14 @@ are downloadable as text, SRT, VTT or JSON:
 curl -O https://ears.example.org/api/rooms/main-hall/transcript?format=txt
 ```
 
+There are two plain text forms, and it is worth knowing which you want. The
+**Download text** button on the room page writes the file in the browser,
+grouped into sentences exactly as the page displays it, which is the one to
+give a speaker. The `?format=txt` endpoint above emits one line per committed
+segment, cut where the speaker paused rather than where the sentence ended;
+that is the form to script against, and the one whose lines line up with the
+JSONL file, the SRT cues and their timings.
+
 Speakers generally appreciate being offered theirs, and equally appreciate
 being told that it is a machine transcript with the errors that implies.
 
