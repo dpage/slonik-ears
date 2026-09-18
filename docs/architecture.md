@@ -63,14 +63,14 @@ works on chunks, so the listener has to decide where one utterance ends
 and the next begins:
 
 1. Audio arrives from the capture device in 20 millisecond frames at
-   16 kHz, mono.
+    16 kHz, mono.
 2. A voice activity detector classifies each frame as speech or not,
-   using an adaptive estimate of the room's noise floor.
+    using an adaptive estimate of the room's noise floor.
 3. Frames accumulate into an utterance while somebody is speaking.
 4. The utterance is committed when the speaker pauses, or when it
-   reaches the maximum utterance length.
+    reaches the maximum utterance length.
 5. The committed audio goes to the model, and the resulting text is
-   published to the relay.
+    published to the relay.
 
 While an utterance is still being spoken, the listener periodically
 sends the audio so far for a quick interim transcription. That interim

@@ -34,45 +34,50 @@ Everything below is easier to fix the day before than ten minutes
 before the keynote:
 
 1. Install the binaries, the model server and a model on each room's
-   machine, and run the listener once. The microphone permission prompt
-   on macOS is the classic way to lose the first ten minutes of a talk.
+    machine, and run the listener once. The microphone permission prompt
+    on macOS is the classic way to lose the first ten minutes of a talk.
 2. Test with `--dry-run`, standing where the speaker will stand, with
-   the room empty and again with somebody talking at the back.
+    the room empty and again with somebody talking at the back.
 3. Check the input level reported at startup, and adjust the gain on
-   the interface rather than hoping.
+    the interface rather than hoping.
 4. Check the model keeps up by watching the `speed` figure the listener
-   logs. Below 1 means it is slower than the speaker.
+    logs. Below 1 means it is slower than the speaker.
 5. Confirm a phone on the venue network can reach the server, using the
-   network the audience will actually be on.
+    network the audience will actually be on.
 
 ## On the day
 
 Each room needs three processes, started in this order:
 
-1. Start the model server, giving it the model and a voice detection
-   model:
+1.  Start the model server, giving it the model and a voice detection
+    model:
 
-   ```bash
-   whisper-server \
-     --model ~/.cache/whisper/ggml-large-v3.bin \
-     --host 127.0.0.1 --port 8081 --threads 8 \
-     --vad --vad-model ~/.cache/whisper/ggml-silero-v5.1.2.bin
-   ```
+    ```bash
+    whisper-server \
+      --model ~/.cache/whisper/ggml-large-v3.bin \
+      --host 127.0.0.1 --port 8081 --threads 8 \
+      --vad --vad-model ~/.cache/whisper/ggml-silero-v5.1.2.bin
+    ```
 
-2. Stop the machine sleeping, because a machine that sleeps mid-talk
-   stops transcribing:
+2.  Stop the machine sleeping, because a machine that sleeps mid-talk
+    stops transcribing:
 
-   ```bash
-   caffeinate -dimsu &
-   ```
+    ```bash
+    caffeinate -dimsu &
+    ```
 
-3. Start the listener for the room:
+    That command is macOS only. On a Linux machine the equivalent
+    depends on the desktop environment, and a headless server usually
+    needs nothing; `systemd-inhibit --what=sleep --why="transcribing"`
+    covers most cases. On Windows, use the power settings.
 
-   ```bash
-   ears-listener --config /usr/local/etc/slonik-ears/listener.yaml \
-                 --speaker "Alex Roe" \
-                 --transcript ~/transcripts/main-hall.jsonl
-   ```
+3.  Start the listener for the room:
+
+    ```bash
+    ears-listener --config /usr/local/etc/slonik-ears/listener.yaml \
+                  --speaker "Alex Roe" \
+                  --transcript ~/transcripts/main-hall.jsonl
+    ```
 
 Put the stage display on the room's stage URL. Its QR code sends the
 audience to the same transcript on their own phones, which saves

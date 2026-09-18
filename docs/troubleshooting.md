@@ -14,14 +14,14 @@ The listener is connected and publishing nothing, which usually means
 it is capturing silence. Check three things in order:
 
 1. Confirm microphone permission was granted. On macOS the prompt
-   belongs to whichever application ran the command, and dismissing it
-   causes capture to record digital silence without any error.
+    belongs to whichever application ran the command, and dismissing it
+    causes capture to record digital silence without any error.
 2. Confirm the right device was selected, using `--list-devices`. On a
-   Linux host running PulseAudio, a name may have matched a monitor
-   source, which is a loopback of what the machine is playing and is
-   silent. The listing marks them.
+    Linux host running PulseAudio, a name may have matched a monitor
+    source, which is a loopback of what the machine is playing and is
+    silent. The listing marks them.
 3. Check the level reported at startup, and the heartbeat with
-   `--log-level debug`.
+    `--log-level debug`.
 
 ### The input is clipping
 
