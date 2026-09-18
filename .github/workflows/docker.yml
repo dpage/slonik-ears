@@ -1,14 +1,31 @@
 name: Container image
 
+# The push trigger carries no path filter on purpose. It covers both main and
+# the release tags, a filter would apply to the tags as well, and a release
+# that quietly failed to publish an image would be a far worse outcome than a
+# few wasted minutes after a documentation merge.
 on:
   push:
     branches: [main]
     tags: ['v*']
+
+  # On a pull request the image is built only when something it is actually
+  # built from changes. The dependency manifests are in this list because the
+  # image runs `npm ci`, `npm run build` and `go build` itself, on different
+  # Node and Go versions from the ones ci.yml uses, so a dependency bump can
+  # break the image whilst CI stays green. Ordinary source changes are left
+  # out deliberately: ci.yml already builds both the server and the web
+  # application, and rebuilding the image on every pull request would cost
+  # several minutes to prove the same thing again.
   pull_request:
     paths:
       - 'deploy/Dockerfile'
+      - 'deploy/docker-compose.yml'
       - '.github/workflows/docker.yml'
       - 'go.mod'
+      - 'go.sum'
+      - 'web/package.json'
+      - 'web/package-lock.json'
   workflow_dispatch:
 
 permissions:
@@ -31,6 +48,16 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v4
+
+      # The compose file is the documented way to run the relay, so a typo in
+      # it is a broken instruction. `config` resolves and validates it without
+      # starting anything; the token is only supplied because the file
+      # requires one to be set before it will resolve at all.
+      - name: Check the compose file
+        working-directory: deploy
+        env:
+          EARS_PUBLISH_TOKEN: validate-only
+        run: docker compose --file docker-compose.yml config --quiet
 
       # Single architecture, loaded into the local daemon, so the image can
       # actually be run. A multi-architecture image cannot be loaded, which is

@@ -15,7 +15,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: '22'
+  # Kept in step with ci.yml and the `node:` tag in deploy/Dockerfile, so the
+  # web application is released from the version it was tested on.
+  NODE_VERSION: '26'
 
 jobs:
   web:

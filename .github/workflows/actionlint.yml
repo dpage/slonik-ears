@@ -1,0 +1,49 @@
+name: Workflows
+
+# Nothing else reads the workflow files themselves. release.yml in particular
+# only runs from a tag, so a mistake in it would otherwise be discovered
+# whilst trying to cut a release, and ci.yml deliberately ignores changes to
+# the other workflows so that editing one does not run the whole test suite.
+# This fills that gap, and is cheap enough to run on any of them.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actionlint-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  actionlint:
+    name: Lint the workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # actionlint checks the schema, the expression syntax and the action
+      # references, and runs shellcheck over the `run:` blocks. Pinned rather
+      # than tracking latest, so a new release cannot fail an unrelated pull
+      # request; Dependabot does not watch this one, so bump it by hand.
+      #
+      # It must be reasonably current, because it carries its own list of
+      # runner labels: v1.7.7 does not know about macos-15-intel, which
+      # release.yml uses, and rejects it.
+      - name: actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          actionlint -color

@@ -28,6 +28,15 @@ device: ""
 # together, which is what a genuine stereo microphone wants: "1,2".
 channel: ""
 
+# Replay a WAV file instead of opening the microphone, which is how a room is
+# rehearsed and how a bad transcript is worked out afterwards from a recording
+# made with record_file below. Loop starts it again at the end; fast replays it
+# as quickly as the model will go rather than in real time, which is only
+# useful for testing.
+file: ""
+loop: false
+fast: false
+
 # Transcription backend. This is whisper.cpp's own server:
 #   whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081
 whisper_url: "http://127.0.0.1:8081/inference"
@@ -40,6 +49,9 @@ translate: false
 # no speech comes back empty rather than being invented. This needs a VAD
 # model loaded on that server; without one it refuses the request.
 whisper_vad: false
+# Invent the text rather than transcribing anything, so the rest of the system
+# can be exercised with no model server at all. This is what `make demo` uses.
+mock: false
 
 # The glossary handed to the model so it spells your jargon the way the
 # audience does. Left alone, the built-in Postgres list applies, which is what
@@ -90,6 +102,12 @@ pre_roll_ms: 320
 min_rms: 0.012
 start_factor: 3.0
 stop_factor: 1.8
+
+# How long to wait for the model server before giving up on a chunk. A
+# committed segment is worth waiting for; a preview that has taken this long
+# has already been overtaken by the speaker.
+final_timeout_sec: 60
+partial_timeout_sec: 8
 
 # A local copy of every committed line, in case the network has other ideas.
 transcript_file: "main-hall.jsonl"

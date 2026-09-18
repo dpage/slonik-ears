@@ -59,6 +59,9 @@ rooms:
     title: "Main Hall"
     track: "Track A"
     language: "en"
+    # Rarely worth setting here, because it changes with every talk. The
+    # organiser's page at /admin is the better place to keep it current.
+    # speaker: "Ada Lovelace"
   - id: seminar-1
     title: "Seminar Room 1"
     track: "Track B"
