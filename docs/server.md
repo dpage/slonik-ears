@@ -58,6 +58,12 @@ a different audience:
 A room may also carry its own publish token in the configuration file,
 so each room's operator can be given a separate secret.
 
+Repeated failed sign-ins from one address are throttled, so neither the
+passcode nor the admin token can simply be worked through. Only failures
+count against the budget, which matters because a venue puts a whole
+hall behind one address: several hundred people entering the correct
+passcode at the start of a talk cost nothing at all.
+
 ## Storing transcripts
 
 Passing `--data-dir` writes one file per room, as JSON objects one per

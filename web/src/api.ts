@@ -1,34 +1,53 @@
 import type { PublicConfig, Room, Segment } from './types'
 
-const KEY_STORAGE = 'ears.viewerKey'
+// The passcode arrives in the link the organisers hand out, as ?k=. It is
+// held here in memory for the life of the page and nowhere else.
+//
+// It used to be copied into localStorage and left in the address bar, which
+// undid the point of the server setting an HttpOnly cookie: anything running
+// on the origin could read it back, it stayed visible in the URL bar and in
+// browser history, and it reached every proxy access log that records query
+// strings. Stripping it on arrival and exchanging it for the cookie leaves it
+// in one place that a script cannot reach.
+let viewerKey: string | null = null
 
-/** The viewer passcode, remembered between visits so nobody types it twice. */
+/** The viewer passcode for this page, if one arrived or was typed. */
 export function getViewerKey(): string | null {
-  const fromUrl = new URLSearchParams(window.location.search).get('k')
-  if (fromUrl) {
-    setViewerKey(fromUrl)
-    return fromUrl
-  }
-  try {
-    return window.localStorage.getItem(KEY_STORAGE)
-  } catch {
-    return null
-  }
+  return viewerKey
 }
 
 export function setViewerKey(key: string): void {
-  try {
-    window.localStorage.setItem(KEY_STORAGE, key)
-  } catch {
-    /* private browsing; the key still travels in the query string */
-  }
+  viewerKey = key
 }
 
 export function clearViewerKey(): void {
+  viewerKey = null
+}
+
+/**
+ * Takes the passcode out of the address bar and exchanges it for the session
+ * cookie, so a reload does not need it and nothing has to remember it.
+ *
+ * Returns once the exchange has been attempted. A failure is not reported: an
+ * out-of-date link should land on the passcode prompt like any other visitor,
+ * not on an error.
+ */
+export async function adoptPasscodeFromURL(): Promise<void> {
+  const url = new URL(window.location.href)
+  const fromUrl = url.searchParams.get('k')
+  if (!fromUrl) return
+
+  viewerKey = fromUrl
+  url.searchParams.delete('k')
   try {
-    window.localStorage.removeItem(KEY_STORAGE)
+    window.history.replaceState(window.history.state, '', url.toString())
   } catch {
-    /* nothing we can do, and nothing that matters */
+    /* an old browser will just keep it in the bar; the rest still holds */
+  }
+  try {
+    await submitPasscode(fromUrl)
+  } catch {
+    /* offline, or the code has expired: the gate will ask for it */
   }
 }
 

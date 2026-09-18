@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { fetchConfig } from './api'
+import { adoptPasscodeFromURL, fetchConfig } from './api'
 import PasscodeGate from './components/PasscodeGate'
 import AdminPage from './pages/AdminPage'
 import Lobby from './pages/Lobby'
@@ -21,7 +21,11 @@ export default function App() {
 
   const load = useCallback(() => {
     setFailed(false)
-    fetchConfig()
+    // The passcode has to be out of the URL and into the cookie before
+    // anything else asks the server for something, or the first request
+    // decides whether this visitor is allowed in without it.
+    adoptPasscodeFromURL()
+      .then(fetchConfig)
       .then(setConfig)
       .catch(() => setFailed(true))
   }, [])
