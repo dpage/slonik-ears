@@ -203,6 +203,11 @@ async function checkFollowsTheSpeaker(path, name, viewport) {
         lastVisible: last ? last.bottom <= window.innerHeight + 1 && last.top >= 0 : false,
         jumpButton: !!document.querySelector('.jump'),
         lineCount: lines.length,
+        // Measured rather than counted. Now that paragraphs are sentences, a
+        // new segment often extends the one being spoken instead of adding
+        // another, so a count can stand still whilst the transcript is very
+        // much still arriving.
+        charCount: lines.reduce((n, el) => n + (el.textContent ?? '').length, 0),
       }
     })
 
@@ -216,7 +221,7 @@ async function checkFollowsTheSpeaker(path, name, viewport) {
 
   await page.waitForTimeout(6000)
   const later = await state()
-  check(later.lineCount > initial.lineCount, `[${name}] new lines arrived`)
+  check(later.charCount > initial.charCount, `[${name}] more transcript arrived`)
   check(later.atBottom && later.lastVisible, `[${name}] still following after new lines`)
 
   // Scroll back, as a reader catching up on a missed sentence would.
