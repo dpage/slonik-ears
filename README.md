@@ -114,12 +114,42 @@ full model in practice, and it replaced a quietly spoken sentence with a
 repetition of its own prompt, which is the worst way for a transcript to be
 wrong.
 
-Smaller machines are a different question. A Raspberry Pi has no GPU worth the
-name and a fraction of the memory bandwidth, so `tiny.en` or `base.en` are the
-realistic choices there. Whatever you pick, watch the `speed=` figure the
-listener logs for each committed segment: below 1 means the model is slower
-than the speaker and the queue only grows. `--no-partials` roughly halves the
-work if it is marginal.
+### On a machine without a GPU
+
+A Raspberry Pi is a different proposition, and the numbers are worth having
+before you plan around one. Measured on a Pi 4 Model B, four cores at 1.5 GHz,
+transcribing through `whisper-server` with voice detection enabled:
+
+| model | audio | time | effective speed |
+| --- | --- | --- | --- |
+| `tiny.en` | 4 s | 6.8 s | 0.6× |
+| `tiny.en` + `--audio-ctx 768` | 4 s | 2.9 s | **1.4×** |
+| `tiny.en` + `--audio-ctx 768` | 8 s | 3.4 s | 2.3× |
+| `base.en` + `--audio-ctx 768` | 8 s | 7.6 s | 1.0× |
+
+**Use `--audio-ctx 768` on a CPU.** Whisper's encoder always processes a fixed
+thirty second window, padding shorter audio with silence, so the cost barely
+depends on how much audio you send: on the same Pi, two seconds cost 5.5 s and
+sixteen seconds cost 6.3 s. A GPU absorbs that; a Pi does not, and since a
+listener commits an utterance every time the speaker pauses, it spends its life
+paying a thirty second bill for four seconds of speech. Limiting the encoder
+context roughly halves the work, and on the recordings here produced identical
+text. 768 covers about fifteen seconds, which sits just above the fourteen
+second maximum utterance, so nothing is truncated; lower it further only if you
+lower `--max-utterance-ms` to match.
+
+Also turn previews off with `--no-partials`, which roughly halves the work
+again, and expect `tiny.en` to be the ceiling: `base.en` is better on jargon
+but only reaches about real time, which leaves nothing in hand.
+
+Whatever you pick, watch the `speed=` figure the listener logs for each
+committed segment. Below 1 means the model is slower than the speaker and the
+queue only grows.
+
+The constraint is processor, not memory: thread scaling on that Pi was 27.1 s,
+14.3 s, 10.6 s and 8.4 s across one to four threads, which is 81% efficiency
+and says the cores are the limit rather than the memory system. A model is 75
+to 142 MB against 4 GB of RAM, so capacity never enters into it.
 
 Measure it in your own room rather than trusting anybody's table of numbers,
 this one included: it is one machine, one microphone and one voice.
@@ -338,7 +368,15 @@ Better, in ascending order:
 
   Override it with `--channel 3` if the microphone is on input 3 and the room
   happened to be quiet whilst it was deciding, or `--channel 1,2` to average a
-  genuine stereo pair. It also warns when an input is clipping or nearly
+  genuine stereo pair.
+
+  **On a PulseAudio host, mind the monitors.** Every output has a monitor
+  source named after it, so `--list-devices` shows both "Anker PowerConf S330"
+  and "Monitor of Anker PowerConf S330"; the second is a loopback of what the
+  machine is playing. A monitor is only chosen when nothing else matches, or
+  when the selector says "monitor", so `--device Anker` finds the microphone —
+  but the listing marks them, and it is worth a glance. Capturing a monitor
+  deliberately is how you transcribe a video call. It also warns when an input is clipping or nearly
   silent, which is worth reading before blaming the transcript:
 
   ```
