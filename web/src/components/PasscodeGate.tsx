@@ -12,15 +12,27 @@ export default function PasscodeGate({ event, onSuccess }: Props) {
   const [key, setKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [wrong, setWrong] = useState(false)
+  const [unreachable, setUnreachable] = useState(false)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
     setWrong(false)
-    const ok = await submitPasscode(key.trim())
-    setBusy(false)
-    if (ok) onSuccess()
-    else setWrong(true)
+    setUnreachable(false)
+    try {
+      const ok = await submitPasscode(key.trim())
+      if (ok) onSuccess()
+      else setWrong(true)
+    } catch {
+      // The venue's Wi-Fi dropping for a second used to leave this button
+      // reading "Checking…" for ever, with reloading the page as the only
+      // way out. Say which of the two went wrong, because "that passcode is
+      // not right" sends somebody to ask the organisers about a code that was
+      // perfectly correct.
+      setUnreachable(true)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -39,12 +51,17 @@ export default function PasscodeGate({ event, onSuccess }: Props) {
             autoCorrect="off"
             spellCheck={false}
             aria-invalid={wrong}
-            aria-describedby={wrong ? 'passcode-error' : undefined}
+            aria-describedby={wrong || unreachable ? 'passcode-error' : undefined}
           />
         </label>
         {wrong && (
           <p id="passcode-error" role="alert" className="error">
             That passcode was not accepted. Do check with the organisers.
+          </p>
+        )}
+        {unreachable && (
+          <p id="passcode-error" role="alert" className="error">
+            Could not reach the server just then. Try again in a moment.
           </p>
         )}
         <button type="submit" className="button primary" disabled={busy || key.trim() === ''}>

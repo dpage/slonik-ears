@@ -60,7 +60,7 @@ export default function ReadingControls({
           type="button"
           className="button"
           onClick={() => setFontSize(Math.max(MIN, fontSize - 2))}
-          disabled={fontSize <= MIN}
+          aria-disabled={fontSize <= MIN}
           aria-label="Smaller text"
         >
           A−
@@ -72,7 +72,7 @@ export default function ReadingControls({
           type="button"
           className="button"
           onClick={() => setFontSize(Math.min(MAX, fontSize + 2))}
-          disabled={fontSize >= MAX}
+          aria-disabled={fontSize >= MAX}
           aria-label="Larger text"
         >
           A+

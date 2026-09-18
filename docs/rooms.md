@@ -33,8 +33,8 @@ speakers:
 - Save details changes the title, speaker and track. The room
   identifier, its URL and its QR code do not move, so anything already
   on a screen or in somebody's pocket keeps working.
-- Reset for next talk empties the transcript and starts the numbering
-  again.
+- Reset for next talk empties the transcript, leaving the room ready for
+  the next speaker.
 - Remove room takes the room out of the lobby entirely, for a track
   that has finished for the day.
 
@@ -49,6 +49,14 @@ the previous talk.
 A listener that is already running carries straight on into the next
 talk without being restarted, which is the point: the room turns around
 without anybody visiting the machine at the back of it.
+
+The sequence numbers carry on climbing rather than starting again from
+one, so the first line of the afternoon talk might be numbered 481.
+That is what lets the server tell a returning viewer which talk it is
+holding: were the numbering to restart, line 50 of this talk and line
+50 of the last one would be the same request, and a phone that slept
+through the break would be handed the remainder of a talk it had never
+seen the start of.
 
 ## Nothing is destroyed
 

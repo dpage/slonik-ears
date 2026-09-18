@@ -149,7 +149,7 @@ func (c *WhisperClient) Transcribe(ctx context.Context, pcm []float32, sampleRat
 	}
 	fields := map[string]string{
 		"response_format": format,
-		"temperature":     strconv.FormatFloat(maxFloat(opts.Temperature, c.cfg.Temperature), 'f', -1, 64),
+		"temperature":     strconv.FormatFloat(max(opts.Temperature, c.cfg.Temperature), 'f', -1, 64),
 		"language":        lang,
 	}
 	if c.cfg.Model != "" {
@@ -235,16 +235,13 @@ func (c *WhisperClient) Transcribe(ctx context.Context, pcm []float32, sampleRat
 	return res, nil
 }
 
-func maxFloat(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
+// truncate shortens s to n characters. Counted in runes rather than bytes: a
+// backend's error message is not necessarily ASCII, and cutting one mid
+// sequence turns a diagnostic into mojibake in the log.
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
-	return s[:n] + "..."
+	return string(r[:n]) + "..."
 }

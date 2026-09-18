@@ -1,6 +1,8 @@
 package hub
 
 import (
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -175,3 +177,52 @@ func TestSinkReceivesFinals(t *testing.T) {
 type sinkFn func(string, protocol.Segment)
 
 func (f sinkFn) Append(room string, seg protocol.Segment) { f(room, seg) }
+
+// TestRemovedRoomRefusesItsPublisher guards the case where an organiser takes
+// a room out of the lobby whilst the machine at the back of that room is still
+// running. The publisher holds its *Room directly, so without a check it
+// carries on committing segments to a room nobody can see, and the sink
+// recreates the transcript file that removing the room had just archived.
+func TestRemovedRoomRefusesItsPublisher(t *testing.T) {
+	sink := &countingSink{}
+	h := New(Options{History: 100, Sink: sink})
+	room := h.Ensure("main-hall")
+	epoch := room.AttachPublisher(protocol.Room{Title: "Main Hall"})
+
+	if _, err := room.AddSegment(epoch, protocol.Segment{Text: "before"}); err != nil {
+		t.Fatalf("publishing to a live room failed: %v", err)
+	}
+	before := sink.count()
+
+	if !h.Remove("main-hall") {
+		t.Fatal("the room was not removed")
+	}
+
+	_, err := room.AddSegment(epoch, protocol.Segment{Text: "after"})
+	if !errors.Is(err, ErrRoomRemoved) {
+		t.Errorf("publishing to a removed room returned %v, want ErrRoomRemoved", err)
+	}
+	if err := room.SetPartial(epoch, protocol.Partial{Text: "still going"}); !errors.Is(err, ErrRoomRemoved) {
+		t.Errorf("a partial to a removed room returned %v, want ErrRoomRemoved", err)
+	}
+	if got := sink.count(); got != before {
+		t.Errorf("a removed room wrote %d more segments to storage", got-before)
+	}
+}
+
+type countingSink struct {
+	mu sync.Mutex
+	n  int
+}
+
+func (c *countingSink) Append(string, protocol.Segment) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.n++
+}
+
+func (c *countingSink) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.n
+}

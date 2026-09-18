@@ -57,13 +57,22 @@ export default function TranscriptView({ segments, partial, showTimestamps, empt
 
   return (
     <div className="transcript-wrapper">
+      {/*
+        aria-relevant is additions only, deliberately. With "text" as well, a
+        screen reader re-reads a paragraph whenever its text node changes, and
+        because committed segments are regrouped into sentences the trailing
+        paragraph is replaced rather than appended to on every arrival: a
+        reader depending on this heard the same growing sentence restarted from
+        the beginning several times a second, which is the opposite of what the
+        page is for.
+      */}
       <div
         className="transcript"
         ref={scrollerRef}
         onScroll={onScroll}
         role="log"
         aria-live="polite"
-        aria-relevant="additions text"
+        aria-relevant="additions"
         aria-label="Live transcript"
         tabIndex={0}
       >
@@ -90,11 +99,22 @@ export default function TranscriptView({ segments, partial, showTimestamps, empt
         )}
       </div>
 
-      {!pinned && (
-        <button type="button" className="jump" onClick={jumpToLive}>
-          Jump to live ↓
-        </button>
-      )}
+      {/*
+        Hidden rather than unmounted. Its own onClick pins the view, so
+        removing it from the tree threw away the focus of a keyboard reader
+        who had just pressed it: the next Tab started again from the top of
+        the page. aria-hidden and inert keep it out of the way whilst it is
+        not offered.
+      */}
+      <button
+        type="button"
+        className={pinned ? 'jump hidden' : 'jump'}
+        onClick={jumpToLive}
+        aria-hidden={pinned}
+        inert={pinned}
+      >
+        Jump to live ↓
+      </button>
     </div>
   )
 }

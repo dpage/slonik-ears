@@ -19,9 +19,6 @@ func ListDevices() ([]Device, error) { return nil, ErrNoCapture }
 // MicSource is unavailable without cgo.
 type MicSource struct{}
 
-// OpenMic is unavailable without cgo.
-func OpenMic(string) (*MicSource, error) { return nil, ErrNoCapture }
-
 // OpenMicChannels is unavailable without cgo.
 func OpenMicChannels(string, []int) (*MicSource, error) { return nil, ErrNoCapture }
 

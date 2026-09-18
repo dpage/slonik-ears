@@ -34,7 +34,10 @@
   --live: #0f7b3f;
   --waiting: #9a6700;
   --danger: #b42318;
-  --partial: #6b7789;
+  /* 4.6:1 against the light background. The interim line is the words
+     currently being spoken, which is exactly what a low-vision reader needs
+     most, so it has to clear WCAG AA rather than merely look softer. */
+  --partial: #5a6577;
   color-scheme: light;
 }
 
@@ -273,11 +276,16 @@ code {
   min-height: 44px; /* a comfortable target on a phone, in the dark */
 }
 
-.button:hover:not(:disabled) {
+.button:hover:not(:disabled):not([aria-disabled='true']) {
   border-color: var(--accent);
 }
 
-.button:disabled {
+/* aria-disabled as well as disabled: a control that is already at its limit
+   stays focusable, because a button that removes itself from the tab order
+   under a keyboard reader's finger drops them back to the top of the page.
+   It still looks unavailable, and its handler is a no-op. */
+.button:disabled,
+.button[aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -511,6 +519,10 @@ code {
 .empty {
   padding: 2rem 0;
   text-align: center;
+}
+
+.jump.hidden {
+  display: none;
 }
 
 .jump {
