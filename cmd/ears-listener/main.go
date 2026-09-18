@@ -228,7 +228,7 @@ func newTranscriber(cfg listener.Config, log *slog.Logger) (asr.Transcriber, err
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("cannot reach the transcription backend at %s: %w\n\nStart one with:\n  whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081\n(install it with `brew install whisper-cpp`), or pass --mock to try the rest of\nthe system without a model", cfg.Whisper, err)
+		return nil, fmt.Errorf("cannot reach the transcription backend at %s: %w\n\nStart one with:\n  whisper-server --model ~/.cache/whisper/ggml-large-v3.bin --port 8081\n(install it with `brew install whisper-cpp`), or pass --mock to try the rest of\nthe system without a model", cfg.Whisper, err)
 	}
 	log.Info("transcription backend ready", "backend", client.Name(), "endpoint", cfg.Whisper)
 	return client, nil
@@ -286,7 +286,7 @@ Examples:
   ears-listener --room demo --mock --dry-run
 
   # A real room, transcribed locally by whisper.cpp:
-  whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081 &
+  whisper-server --model ~/.cache/whisper/ggml-large-v3.bin --port 8081 &
   ears-listener --room main-hall --title "Main Hall" --token "$EARS_PUBLISH_TOKEN"
 
   # Teach the model your jargon: start from the built-in Postgres glossary,

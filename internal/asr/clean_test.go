@@ -51,3 +51,19 @@ func TestCommonPrefixWords(t *testing.T) {
 		}
 	}
 }
+
+func TestCleanDropsOutputWithNoWordsInIt(t *testing.T) {
+	// large-v3 answers trailing room tone with a lone full stop, and the
+	// stage display would otherwise show it as a line of transcript.
+	for _, s := range []string{".", ". .", "...", " -- ", "?!", "…", ","} {
+		if got := CleanTranscript(s); got != "" {
+			t.Errorf("CleanTranscript(%q) = %q, want it discarded", s, got)
+		}
+	}
+	// Anything with a word or a number in it is still speech.
+	for _, s := range []string{"No.", "18.", "A.", "pg_dump."} {
+		if CleanTranscript(s) == "" {
+			t.Errorf("CleanTranscript(%q) discarded real speech", s)
+		}
+	}
+}

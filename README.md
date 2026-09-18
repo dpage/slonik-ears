@@ -87,14 +87,42 @@ make build            # web app, server and listener into ./bin
 ### Fetch a model
 
 ```bash
-make model MODEL=small.en     # ~488 MB, into ~/.cache/whisper
+make model MODEL=large-v3     # ~2.9 GB, into ~/.cache/whisper
 ```
 
 Smallest first: `tiny.en` (78 MB), `base.en` (148 MB), `small.en` (488 MB),
-`medium.en` (1.5 GB), and the multilingual `large-v3-turbo-q5_0` (574 MB).
-Drop the `.en` for multilingual variants. `small.en` is the usual compromise
-between accuracy and keeping up with a fast speaker, but measure it in your
-own room rather than trusting anybody's table of numbers, this one included.
+`medium.en` (1.5 GB), `large-v3-turbo` (1.5 GB) and `large-v3` (2.9 GB). Drop
+the `.en` for the multilingual variants; the `-q5_0` builds are quantised and
+roughly half the size.
+
+**On a recent Mac, use `large-v3`.** Measured on an M2 Max with 30 GPU cores,
+replaying a recording of a real talk and scoring against twenty phrases that
+were actually spoken:
+
+| model | phrases right | mean speed | slowest chunk |
+| --- | --- | --- | --- |
+| `small.en` | 17/20 | 9.9× | 0.4× |
+| `large-v3-turbo` | 18/20 | 4.0× | 0.4× |
+| `large-v3` | **19/20** | 3.9× | **1.0×** |
+
+Speed here is audio duration over time taken, so 3.9× means the model keeps up
+with a speaker nearly four times over. `large-v3` was never slower than real
+time on that machine, and it was the only one of the three to produce "live
+transcript" rather than "life transcript", and "commit timestamps" rather than
+"commit tim estamps". The turbo variant is the surprise: no faster than the
+full model in practice, and it replaced a quietly spoken sentence with a
+repetition of its own prompt, which is the worst way for a transcript to be
+wrong.
+
+Smaller machines are a different question. A Raspberry Pi has no GPU worth the
+name and a fraction of the memory bandwidth, so `tiny.en` or `base.en` are the
+realistic choices there. Whatever you pick, watch the `speed=` figure the
+listener logs for each committed segment: below 1 means the model is slower
+than the speaker and the queue only grows. `--no-partials` roughly halves the
+work if it is marginal.
+
+Measure it in your own room rather than trusting anybody's table of numbers,
+this one included: it is one machine, one microphone and one voice.
 
 ### Make a publish token
 
@@ -110,7 +138,7 @@ chmod 600 ~/.ears-token
 
 ```bash
 whisper-server \
-  --model ~/.cache/whisper/ggml-small.en.bin \
+  --model ~/.cache/whisper/ggml-large-v3.bin \
   --host 127.0.0.1 --port 8081 \
   --threads 8
 ```
@@ -365,7 +393,7 @@ The variables worth knowing:
 | --- | --- | --- |
 | `EARS_PUBLISH_TOKEN` | both | the secret a listener needs to publish |
 | `EARS_VIEWER_PASSCODE` | server | optional passcode for attendees |
-| `EARS_ADMIN_TOKEN` | server | guards the admin API |
+| `EARS_ADMIN_TOKEN` | server | guards the admin API and the organiser page at `/admin`; unset means both are off |
 | `EARS_BASE_URL` | server | public address, for QR codes and join links |
 | `EARS_DATA_DIR` | server | where transcripts are written |
 | `EARS_SERVER` | listener | which server to publish to |

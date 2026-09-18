@@ -39,7 +39,9 @@ auth:
   # Leave empty for an open event, which is usually the point of the exercise.
   # Set it (EARS_VIEWER_PASSCODE) for an internal or paid event.
   viewer_passcode: ""
-  # Guards PUT/DELETE /api/admin/rooms/{id}.
+  # Guards the admin API and the organiser page at /admin. Leave it empty and
+  # both are switched off, which is the safe default: this is the interface
+  # that can clear a talk off every screen in the building.
   admin_token: ""
   # Extra origins allowed to open WebSockets. Same-origin always works, and
   # native clients (the listener) send no Origin header. Add entries here only

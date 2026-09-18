@@ -26,8 +26,19 @@ type Store interface {
 	Append(roomID string, seg protocol.Segment)
 	Load(roomID string) ([]protocol.Segment, error)
 	Rooms() ([]string, error)
+	// Archive sets a room's transcript aside so that the next talk starts from
+	// nothing, without destroying the last one. Nothing in this package
+	// deletes a transcript: turning a room around between talks is routine,
+	// and a button pressed during the wrong one should not cost a speaker
+	// their session.
+	Archive(roomID string) error
 	Close() error
 }
+
+// ArchiveDir is where archived transcripts are put, beneath the data
+// directory. A subdirectory rather than a naming convention, so that Rooms
+// cannot mistake an archive for a live room whatever it ends up being called.
+const ArchiveDir = "archive"
 
 // Null is a Store that throws everything away. Used when --data-dir is unset.
 type Null struct{}
@@ -40,6 +51,9 @@ func (Null) Load(string) ([]protocol.Segment, error) { return nil, nil }
 
 // Rooms returns no rooms.
 func (Null) Rooms() ([]string, error) { return nil, nil }
+
+// Archive has nothing to set aside.
+func (Null) Archive(string) error { return nil }
 
 // Close does nothing.
 func (Null) Close() error { return nil }
@@ -184,6 +198,53 @@ func (s *File) Load(roomID string) ([]protocol.Segment, error) {
 		return out, err
 	}
 	return out, nil
+}
+
+// Archive moves a room's transcript into the archive directory, stamped with
+// the time it was set aside, and leaves the room with no transcript at all.
+//
+// The open writer has to go first. Renaming a file out from under a file
+// descriptor does not move the descriptor: it would carry on happily appending
+// the next talk to the archived file, which is the opposite of the point.
+func (s *File) Archive(roomID string) error {
+	if !protocol.ValidRoomID(roomID) {
+		return fmt.Errorf("invalid room id %q", roomID)
+	}
+
+	s.mu.Lock()
+	if w, ok := s.writers[roomID]; ok {
+		if err := w.bw.Flush(); err != nil {
+			s.reportLocked("flush transcript", roomID, err)
+		}
+		_ = w.f.Close()
+		delete(s.writers, roomID)
+	}
+	s.mu.Unlock()
+
+	src := s.path(roomID)
+	if _, err := os.Stat(src); errors.Is(err, os.ErrNotExist) {
+		return nil // nothing recorded yet, so nothing to set aside
+	}
+
+	dir := filepath.Join(s.dir, ArchiveDir)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return fmt.Errorf("create archive dir: %w", err)
+	}
+	// Seconds resolution is plenty between talks, but two archives in the same
+	// second must not silently overwrite one another.
+	stamp := time.Now().UTC().Format("2006-01-02T15-04-05")
+	dst := filepath.Join(dir, fmt.Sprintf("%s-%s.jsonl", roomID, stamp))
+	for n := 2; ; n++ {
+		if _, err := os.Stat(dst); errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		dst = filepath.Join(dir, fmt.Sprintf("%s-%s-%d.jsonl", roomID, stamp, n))
+	}
+	if err := os.Rename(src, dst); err != nil {
+		return fmt.Errorf("archive transcript: %w", err)
+	}
+	s.log.Info("archived transcript", "room", roomID, "file", dst)
+	return nil
 }
 
 // Rooms lists the room ids that have stored transcripts.

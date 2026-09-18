@@ -40,6 +40,16 @@ export function useRoomStream(roomId: string | undefined): RoomStream {
         if (msg.room) setRoom(msg.room)
         if (msg.status !== undefined) setStatus(msg.status ?? null)
         setPartial(msg.partial ?? null)
+        if (msg.reset) {
+          // The room has been turned around for the next talk. Replace what we
+          // hold rather than merging into it, and take the server's cursor as
+          // given: keeping the larger of the two, as the ordinary resume path
+          // does, would leave the previous speaker on screen and cause every
+          // segment of the new talk to be discarded as one already seen.
+          setSegments(msg.segments ?? [])
+          cursorRef.current = msg.cursor ?? 0
+          break
+        }
         if (msg.segments?.length) {
           setSegments((prev) => merge(prev, msg.segments ?? []))
         }

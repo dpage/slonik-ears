@@ -114,3 +114,52 @@ export function qrURL(id: string, size = 420, attempt = 0): string {
   const base = `/api/rooms/${encodeURIComponent(id)}/qr.png?size=${size}`
   return attempt > 0 ? `${base}&retry=${attempt}` : base
 }
+
+// ------------------------------------------------------------------- admin
+//
+// These sit behind the admin token rather than the attendee passcode, and it
+// is exchanged for a cookie once so that turning a room around between talks
+// does not involve pasting a secret into anything.
+
+/** Exchanges the admin token for a session cookie. */
+export function submitAdminToken(token: string): Promise<void> {
+  return sendJSON('/api/admin/session', 'POST', { token })
+}
+
+/** Lists rooms as the admin. A 401 here means the session has lapsed. */
+export function fetchAdminRooms(): Promise<Room[]> {
+  return getJSON<{ rooms: Room[] }>('/api/admin/rooms').then((r) => r.rooms ?? [])
+}
+
+/** Changes a room's title, speaker or track. Its id and URL do not move. */
+export function updateRoom(id: string, meta: Partial<Room>): Promise<void> {
+  return sendJSON(`/api/admin/rooms/${encodeURIComponent(id)}`, 'PUT', meta)
+}
+
+/** Empties a room for the next talk. The old transcript is archived, not lost. */
+export function resetRoom(id: string): Promise<void> {
+  return sendJSON(`/api/admin/rooms/${encodeURIComponent(id)}/reset`, 'POST')
+}
+
+/** Takes a room out of the lobby entirely. Its transcript is archived too. */
+export function deleteRoom(id: string): Promise<void> {
+  return sendJSON(`/api/admin/rooms/${encodeURIComponent(id)}`, 'DELETE')
+}
+
+async function sendJSON(path: string, method: string, body?: unknown): Promise<void> {
+  const resp = await fetch(path, {
+    method,
+    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!resp.ok) {
+    let message = resp.statusText
+    try {
+      const parsed = (await resp.json()) as { error?: string }
+      if (parsed.error) message = parsed.error
+    } catch {
+      /* the status line will have to do */
+    }
+    throw new ApiError(message, resp.status)
+  }
+}

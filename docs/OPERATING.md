@@ -40,7 +40,7 @@ Per room, in order:
 
 ```bash
 # 1. the model server
-whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081 --threads 8
+whisper-server --model ~/.cache/whisper/ggml-large-v3.bin --port 8081 --threads 8
 
 # 2. keep the Mac awake
 caffeinate -dimsu &
@@ -51,14 +51,19 @@ ears-listener --config /usr/local/etc/slonik-ears/listener.yaml \
               --transcript ~/transcripts/main-hall.jsonl
 ```
 
-Update `--speaker` between talks — either restart the listener with a new
-value, or set it through the admin API without interrupting anything:
+Between talks, use the organiser's page at `/admin` to change the speaker and
+clear the transcript without going near the machine at the back of the room;
+see "Turning a room around between talks" below. The same thing over the API,
+if you would rather script it:
 
 ```bash
 curl -X PUT https://ears.example.org/api/admin/rooms/main-hall \
      -H "Authorization: Bearer $EARS_ADMIN_TOKEN" \
      -H 'Content-Type: application/json' \
      -d '{"title":"Main Hall","speaker":"Someone Else","track":"Track A"}'
+
+curl -X POST https://ears.example.org/api/admin/rooms/main-hall/reset \
+     -H "Authorization: Bearer $EARS_ADMIN_TOKEN"
 ```
 
 Put the stage display on `/r/main-hall/stage`. Its QR code sends the audience
@@ -96,6 +101,43 @@ being told that it is a machine transcript with the errors that implies.
 | Listener logs "publisher disconnected ... connection refused" on a loop | wrong `--server` address, or the relay is not running. The listener keeps transcribing and buffers the text, so fix the address and restart it — nothing said so far is lost if `--transcript` was set |
 | Ctrl-C does not seem to stop the listener | it is finishing the last transcription, or waiting on the relay. It says which. Press Ctrl-C again to exit immediately |
 | Sentences arrive chopped in half, or a long one stops partway through | the speaker is too quiet for the detector. Run with `--log-level debug` and compare `level` against `start_threshold` in the heartbeat: speech should peak at several times the threshold rather than brushing against it. Raise the gain on the interface first, and only then reach for the detector's settings |
+
+## Turning a room around between talks
+
+Give the server an admin token and the organiser's page at `/admin` handles it:
+
+```bash
+export EARS_ADMIN_TOKEN=$(openssl rand -hex 24)
+```
+
+Without one the page says so and the controls stay switched off, which is
+deliberate: this is the interface that can clear a talk off every screen in the
+building, so it is unavailable by default rather than open. It is not linked
+from the lobby either, for the same reason.
+
+For each room it offers the three things that come up between speakers:
+
+* **Save details** changes the title, speaker and track. The room's id, its URL
+  and its QR code do not move, so anything already on a screen or in somebody's
+  pocket carries on working.
+* **Reset for next talk** empties the transcript and starts the numbering over.
+  Viewers watching at the time see the screen clear where they stand; they are
+  not disconnected, so a stage display does not flicker through a reconnection
+  in front of an audience. A listener already running carries straight on into
+  the next talk without being restarted.
+* **Remove room** takes it out of the lobby entirely, for a track that has
+  finished for the day.
+
+The last two each take two clicks, and neither destroys anything: the previous
+transcript is moved to `<data-dir>/archive/<room>-<timestamp>.jsonl`, so a
+button pressed during the wrong talk costs a moment rather than a speaker's
+session. Nothing in Slonik Ears deletes a transcript, and tidying the archive is
+a job for whoever tidies the disk.
+
+If you would rather not run with an admin token at all, the alternative is a
+room per talk: `--room main-hall-2` and so on. Each gets its own transcript and
+its own URL, the stage QR code updates itself, and the speaker ends up with a
+file containing only their own talk.
 
 ## Tuning segmentation for a particular room
 
