@@ -56,6 +56,37 @@ async function visit(path, name, viewport, settleMs = 4000) {
  * the screen. That makes it app code, and app code that only runs when
  * somebody presses a button is app code nobody notices has broken.
  */
+/**
+ * The live region is what a screen reader actually consumes, and getting it
+ * wrong is invisible to everybody who does not use one. aria-relevant="text"
+ * made a reader re-read a paragraph every time its text node changed, which
+ * for sentence-grouped transcript is on every arriving segment.
+ */
+async function checkTheLiveRegion(viewport) {
+  const context = await browser.newContext({ viewport })
+  const page = await context.newPage()
+  await page.goto(`${base}/r/${room}`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1500)
+
+  const region = page.locator('.transcript')
+  check((await region.getAttribute('role')) === 'log', '[a11y] the transcript is a log region')
+  check(
+    (await region.getAttribute('aria-live')) === 'polite',
+    '[a11y] the transcript is announced politely',
+  )
+  check(
+    (await region.getAttribute('aria-relevant')) === 'additions',
+    '[a11y] only additions are announced, so a growing sentence is not re-read',
+  )
+
+  // A control that removes itself from the tree under a keyboard reader's
+  // focus drops them back to the top of the page.
+  const jump = page.locator('button.jump')
+  check((await jump.count()) === 1, '[a11y] the jump-to-live control stays in the document')
+
+  await context.close()
+}
+
 async function checkTranscriptDownload(viewport) {
   const context = await browser.newContext({ viewport, acceptDownloads: true })
   const page = await context.newPage()
@@ -201,7 +232,14 @@ async function checkFollowsTheSpeaker(path, name, viewport) {
         scrollTop: Math.round(scroller.scrollTop),
         atBottom: scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 4,
         lastVisible: last ? last.bottom <= window.innerHeight + 1 && last.top >= 0 : false,
-        jumpButton: !!document.querySelector('.jump'),
+        // Offered, not merely present. The control stays in the document so
+        // that it does not vanish from under a keyboard reader's focus when
+        // pressing it pins the view; being offered is a question of whether
+        // it is visible.
+        jumpButton: (() => {
+          const el = document.querySelector('.jump')
+          return !!el && el.getClientRects().length > 0
+        })(),
         lineCount: lines.length,
         // Measured rather than counted. Now that paragraphs are sentences, a
         // new segment often extends the one being spoken instead of adding
@@ -217,7 +255,7 @@ async function checkFollowsTheSpeaker(path, name, viewport) {
   // carry the newest line off the bottom of the screen.
   check(!initial.pageScrolls, `[${name}] the page itself does not scroll`)
   check(initial.lastVisible, `[${name}] the newest line is on screen`)
-  check(!initial.jumpButton, `[${name}] no "jump to live" button while following`)
+  check(!initial.jumpButton, `[${name}] no "jump to live" button offered while following`)
 
   await page.waitForTimeout(6000)
   const later = await state()
@@ -264,6 +302,7 @@ try {
   await checkStageFurniture({ width: 1280, height: 720 })
   await checkQRSurvivesAnOutage({ width: 1280, height: 720 })
   await checkTranscriptDownload({ width: 1280, height: 800 })
+  await checkTheLiveRegion({ width: 1280, height: 800 })
 
   const missing = await visit('/r/no-such-room', 'missing', { width: 1280, height: 800 }, 2500)
   check(/No such room/i.test(missing.text), 'an unknown room is reported rather than hanging')

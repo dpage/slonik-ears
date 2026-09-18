@@ -12,7 +12,7 @@ import { useSetting } from '../hooks/useSetting'
 export default function RoomPage() {
   const { roomId } = useParams<{ roomId: string }>()
   const config = useConfig()
-  const { room, segments, partial, status, connection, notFound } = useRoomStream(roomId)
+  const { room, segments, partial, status, connection, notFound, error } = useRoomStream(roomId)
 
   const [fontSize, setFontSize] = useSetting<number>('fontSize', 20)
   const [theme, setTheme] = useSetting<string>('theme', 'dark')
@@ -112,6 +112,16 @@ export default function RoomPage() {
           </div>
         )}
 
+        {/*
+          The server's own error frames were being collected by the hook and
+          rendered nowhere, so a viewer turned away for any reason saw a page
+          that looked live and simply stopped updating.
+        */}
+        {error && (
+          <p className="warning small" role="alert">
+            {error}
+          </p>
+        )}
         {status?.detail && (
           <p className="warning small" role="status">
             Room reports: {status.detail}

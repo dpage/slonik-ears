@@ -104,6 +104,7 @@ export function useRoomStream(roomId: string | undefined): RoomStream {
         attemptsRef.current = 0
         setConnection('live')
         setError(null)
+        setNotFound(false)
       }
 
       socket.onmessage = (event) => {
@@ -115,6 +116,14 @@ export function useRoomStream(roomId: string | undefined): RoomStream {
       }
 
       socket.onclose = () => {
+        // Only if this is still the live socket. A phone waking with a
+        // half-closed connection opens a replacement before the old one's
+        // close event arrives; without this check that event then nulls the
+        // reference to the healthy new socket, flips the badge to
+        // "Reconnecting" over a working stream, and schedules yet another
+        // connect. The sockets pile up and the cleanup only ever closes
+        // whichever one the ref happens to be holding.
+        if (socketRef.current !== socket) return
         socketRef.current = null
         if (closedRef.current) return
         setConnection('reconnecting')
@@ -123,8 +132,13 @@ export function useRoomStream(roomId: string | undefined): RoomStream {
           .then(() => scheduleRetry())
           .catch((err: unknown) => {
             if (err instanceof ApiError && err.status === 404) {
+              // Not terminal. A room removed by mistake and recreated a
+              // minute later used to leave a stage display reading "No such
+              // room" for the rest of the talk until somebody walked over to
+              // it. Keep retrying, slowly, and clear the notice if it returns.
               setNotFound(true)
               setConnection('offline')
+              scheduleRetry()
               return
             }
             if (err instanceof ApiError && err.status === 401) {
@@ -158,7 +172,10 @@ export function useRoomStream(roomId: string | undefined): RoomStream {
     // socket is usually dead without having told anybody.
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
-      if (!socketRef.current || socketRef.current.readyState > WebSocket.OPEN) {
+      // CLOSING counts as gone: the socket will never carry anything again,
+      // and waiting for its close event to arrive is what left a phone
+      // looking connected whilst receiving nothing.
+      if (!socketRef.current || socketRef.current.readyState >= WebSocket.CLOSING) {
         if (retryRef.current !== null) {
           window.clearTimeout(retryRef.current)
           retryRef.current = null
