@@ -120,7 +120,7 @@ The following table describes what each workflow does and when:
 
 | Workflow | When | What |
 | --- | --- | --- |
-| `ci.yml` | Every push and pull request | Formatting, vet and golangci-lint; the tests under the race detector on Linux and macOS; govulncheck and npm audit; the web build; and an end to end run that publishes a transcript through a real server and drives the attendee views in a real browser. |
+| `ci.yml` | Every push and pull request that touches something other than the documentation | Formatting, vet and golangci-lint; the tests under the race detector on Linux and macOS; govulncheck and npm audit; the web build; and an end to end run that publishes a transcript through a real server and drives the attendee views in a real browser. |
 | `docker.yml` | Main, tags, and changes to the Dockerfile | Builds the image, runs it, checks that it serves the application and is not running as root, then publishes a multi-architecture image to the GitHub container registry. |
 | `docs.yml` | Changes to the documentation | Builds the site with `--strict`, and publishes it to GitHub Pages when the change lands on `main`. |
 | `release.yml` | A tag beginning with `v` | Cross-compiles the server for Linux, macOS and Windows, builds the listener natively on each platform that needs cgo, and attaches the tarballs and `SHA256SUMS` to a GitHub release. |
