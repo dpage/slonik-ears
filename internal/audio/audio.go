@@ -3,6 +3,8 @@
 // worth sending to a speech-to-text model.
 package audio
 
+import "time"
+
 // SampleRate is the rate everything in this project works at. Whisper models
 // expect 16 kHz mono, so there is no reason to carry anything else around.
 const SampleRate = 16000
@@ -13,6 +15,11 @@ const FrameMs = 20
 
 // FrameSize is the number of samples in one VAD frame.
 const FrameSize = SampleRate * FrameMs / 1000
+
+// CalibrationWindow is how long a multichannel device is listened to before
+// deciding which of its inputs carries the microphone. Long enough to catch a
+// syllable or two, short enough that nobody notices it at start-up.
+const CalibrationWindow = 2 * time.Second
 
 // Source produces mono float32 frames at SampleRate.
 type Source interface {

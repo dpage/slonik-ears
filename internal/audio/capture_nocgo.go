@@ -2,7 +2,10 @@
 
 package audio
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 // ErrNoCapture is returned when the binary was built without cgo, which
 // miniaudio requires. Build with CGO_ENABLED=1 to capture live audio; a
@@ -18,6 +21,24 @@ type MicSource struct{}
 
 // OpenMic is unavailable without cgo.
 func OpenMic(string) (*MicSource, error) { return nil, ErrNoCapture }
+
+// OpenMicChannels is unavailable without cgo.
+func OpenMicChannels(string, []int) (*MicSource, error) { return nil, ErrNoCapture }
+
+// Channels implements the diagnostic the listener logs at start-up.
+func (*MicSource) Channels() int { return 0 }
+
+// SelectedChannels implements the diagnostic the listener logs at start-up.
+func (*MicSource) SelectedChannels() []int { return nil }
+
+// ChannelLevels implements the diagnostic the listener logs at start-up.
+func (*MicSource) ChannelLevels() []float64 { return nil }
+
+// ChannelPeaks implements the diagnostic the listener logs at start-up.
+func (*MicSource) ChannelPeaks() ([]float64, []float64) { return nil, nil }
+
+// AwaitChannelChoice implements the diagnostic the listener logs at start-up.
+func (*MicSource) AwaitChannelChoice(time.Duration) bool { return true }
 
 // Frames implements Source.
 func (*MicSource) Frames() <-chan []float32 { return nil }

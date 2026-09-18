@@ -18,6 +18,15 @@ language: "en"
 # Capture device: an index, a device id, or part of the name as shown by
 # `ears-listener --list-devices`. Empty means the system default input.
 device: ""
+# Which input channel of a multichannel interface carries the microphone,
+# 1-based as printed on the front of the box. Empty means measure every channel
+# at start-up and use whichever is loudest, which the listener logs.
+#
+# This matters more than it sounds. A sixteen-input interface offers no mono
+# format, so a request for one channel is answered by averaging all sixteen —
+# a single microphone divided by sixteen. Several channels here are averaged
+# together, which is what a genuine stereo microphone wants: "1,2".
+channel: ""
 
 # Transcription backend. This is whisper.cpp's own server:
 #   whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081

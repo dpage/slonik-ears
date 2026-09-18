@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"os/signal"
 	"strings"
@@ -188,10 +189,15 @@ func openSource(cfg listener.Config, log *slog.Logger) (audio.Source, error) {
 	if cfg.File != "" {
 		return audio.OpenFile(cfg.File, !cfg.Fast, cfg.Loop)
 	}
-	mic, err := audio.OpenMic(cfg.Device)
+	channels, err := cfg.Channels()
+	if err != nil {
+		return nil, err
+	}
+	mic, err := audio.OpenMicChannels(cfg.Device, channels)
 	if err != nil {
 		return nil, fmt.Errorf("%w\n\nOn macOS, the first run needs microphone permission: the prompt appears for\nthe application running this command (Terminal, iTerm, or the binary itself).\nGrant it under System Settings > Privacy & Security > Microphone, then try again.\nUse --list-devices to see what is available", err)
 	}
+	reportChannels(mic, log)
 	if cfg.Record == "" {
 		return mic, nil
 	}
@@ -206,6 +212,75 @@ func openSource(cfg listener.Config, log *slog.Logger) (audio.Source, error) {
 		"file", cfg.Record)
 	return rec, nil
 }
+
+// reportChannels says which input the transcript is actually coming from, and
+// what every other input measured.
+//
+// This is the line that would have saved an afternoon. A multichannel
+// interface offers no mono format, so asking the driver for one channel makes
+// it average all of them: a microphone on input 1 of a sixteen-input box
+// arrives at a sixteenth of its real level, and everything downstream looks
+// like a quiet speaker or a bad microphone. Now the listener says where it is
+// listening and what it heard elsewhere.
+func reportChannels(mic *audio.MicSource, log *slog.Logger) {
+	if n := mic.Channels(); n <= 1 {
+		return
+	}
+	if !mic.AwaitChannelChoice(audio.CalibrationWindow + 2*time.Second) {
+		log.Warn("could not tell which input channel has the microphone; using the first",
+			"channels", mic.Channels())
+		return
+	}
+	levels := mic.ChannelLevels()
+	peaks, clipped := mic.ChannelPeaks()
+	selected := mic.SelectedChannels()
+
+	attrs := []any{"device_channels", mic.Channels(), "using", selected}
+	loudest, loudestCh := 0.0, 0
+	for i, l := range levels {
+		if l > loudest {
+			loudest, loudestCh = l, i+1
+		}
+		if l > 0.0002 {
+			attrs = append(attrs, fmt.Sprintf("ch%d", i+1), round5(l))
+		}
+	}
+	log.Info("input channels measured", attrs...)
+
+	// A peak at full scale is not a strong signal, it is a damaged one: the
+	// converter has run out of headroom and the tops of the waveform are
+	// simply gone. Whisper transcribes clipped speech noticeably worse, and
+	// nothing downstream can put back what the interface threw away.
+	for _, c := range selected {
+		i := c - 1
+		if i < 0 || i >= len(peaks) {
+			continue
+		}
+		if clipped[i] > 0.001 {
+			log.Warn("the input is clipping: turn the gain down on the interface",
+				"channel", c, "peak", round5(peaks[i]),
+				"clipped_samples_pct", round5(clipped[i]*100))
+		} else if peaks[i] > 0.9 {
+			log.Warn("the input is close to clipping; a little less gain would be safer",
+				"channel", c, "peak", round5(peaks[i]))
+		} else if peaks[i] < 0.02 {
+			log.Warn("the input is very quiet; more gain on the interface would help",
+				"channel", c, "peak", round5(peaks[i]))
+		}
+	}
+
+	if loudest < 0.0005 {
+		log.Warn("every input channel was near silent whilst choosing one: check the microphone is connected and the room is not silent",
+			"loudest", round5(loudest))
+		return
+	}
+	if len(selected) == 1 && selected[0] != loudestCh {
+		log.Warn("the channel in use is not the loudest one; pass --channel to override",
+			"using", selected[0], "loudest", loudestCh)
+	}
+}
+
+func round5(v float64) float64 { return math.Round(v*100000) / 100000 }
 
 func newTranscriber(cfg listener.Config, log *slog.Logger) (asr.Transcriber, error) {
 	if cfg.Mock {
