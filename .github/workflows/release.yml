@@ -153,7 +153,7 @@ jobs:
           name="slonik-ears-listener-${version}-${{ matrix.label }}"
           mkdir -p "dist/${name}"
           cp out/ears-listener "dist/${name}/"
-          cp README.md LICENSE docs/OPERATING.md "dist/${name}/"
+          cp README.md LICENSE docs/running_an_event.md "dist/${name}/"
           cp configs/listener.example.yaml "dist/${name}/"
           tar -czf "dist/${name}.tar.gz" -C dist "${name}"
           rm -rf "dist/${name}"
