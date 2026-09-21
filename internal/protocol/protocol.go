@@ -55,8 +55,15 @@ type Message struct {
 	// screen for the whole of the next talk.
 	Reset bool `json:"reset,omitempty"`
 
-	Error      string `json:"error,omitempty"`
-	ServerTime int64  `json:"serverTime,omitempty"`
+	Error string `json:"error,omitempty"`
+	// Fatal marks an error that retrying cannot fix, so a listener should
+	// stop rather than reconnect. Without it the listener treats every
+	// refusal as a passing squall: told its room has been removed it comes
+	// straight back and recreates it, and told it has been superseded it
+	// takes the room back off the listener that superseded it, whereupon the
+	// two fight over the room indefinitely.
+	Fatal      bool  `json:"fatal,omitempty"`
+	ServerTime int64 `json:"serverTime,omitempty"`
 }
 
 // Room is the public description of a track/room.

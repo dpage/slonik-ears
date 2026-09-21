@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -32,6 +33,10 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// publishRefused records that the publisher gave up for good, so the exit
+// status says so after the ordinary shutdown has run its course.
+var publishRefused atomic.Bool
 
 func run() error {
 	var (
@@ -99,6 +104,10 @@ func run() error {
 
 	// ---- publisher
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// Separately cancellable, so that the publisher giving up for good can
+	// stop capture the same way Ctrl-C does.
+	ctx, giveUp := context.WithCancel(ctx)
+	defer giveUp()
 	defer stop()
 	defer signals.ExitOnSecondInterrupt(os.Stderr,
 		"ears-listener: interrupted again — exiting now. Any undelivered transcript is in the --transcript file, if one was set.")()
@@ -137,7 +146,15 @@ func run() error {
 		client = c
 		go func() {
 			defer close(clientDone)
-			_ = client.Run(clientCtx)
+			if err := client.Run(clientCtx); errors.Is(err, listener.ErrFatal) {
+				// There is no point capturing a room whose transcript has
+				// nowhere to go: reconnecting is what would recreate a room an
+				// organiser has just removed, or take a room back off the
+				// listener that superseded this one. Stop, and say why.
+				publishRefused.Store(true)
+				log.Error("nothing more can be published to this room; stopping", "error", err)
+				giveUp()
+			}
 		}()
 		pub = client
 	}
@@ -180,6 +197,11 @@ func run() error {
 
 	if runErr != nil && !errors.Is(runErr, context.Canceled) {
 		return runErr
+	}
+	if publishRefused.Load() {
+		// A non-zero exit, so that a service manager does not simply restart
+		// this and start the argument again.
+		return errors.New("the server will not accept this listener; see the error above")
 	}
 	log.Info("listener stopped")
 	return nil

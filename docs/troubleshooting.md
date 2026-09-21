@@ -126,6 +126,26 @@ The server address is wrong, or the relay is not running. The listener
 keeps transcribing and buffers the text, so correcting the address and
 restarting loses nothing said so far, provided `--transcript` was set.
 
+### The listener stopped on its own and exited non-zero
+
+Two refusals are permanent, and the listener stops on either rather
+than reconnecting:
+
+```
+level=ERROR msg="nothing more can be published to this room; stopping"
+```
+
+Either an organiser removed the room, or another listener took it over.
+Reconnecting would make both worse: the first would recreate the room
+that was just removed, and the second would take the room back off the
+listener that superseded this one, leaving the pair to fight over it
+for the rest of the event. Whatever was mid-sentence is transcribed and
+delivered first, so the exit costs nothing.
+
+If the room was removed by mistake, start the listener again; the room
+comes back with it. If a second listener was started deliberately, this
+message is the first one reporting that it has handed over.
+
 ### Attendees cannot reach the server
 
 The venue network is isolating wireless clients from one another, which
