@@ -199,6 +199,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 		_ = writeWS(conn, protocol.Message{
 			Type:  protocol.TypeError,
 			Error: "protocol version mismatch: upgrade the listener or the server so they match",
+			Fatal: true,
 		})
 		s.log.Warn("listener protocol mismatch", "room", roomID, "listener", hello.Version, "server", protocol.Version)
 		return
@@ -266,6 +267,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 				_ = writeWS(conn, protocol.Message{
 					Type:  protocol.TypeError,
 					Error: "another listener has taken over this room",
+					Fatal: true,
 				})
 				s.log.Warn("stale listener rejected", "room", roomID, "ip", ip)
 				return
@@ -274,6 +276,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 				_ = writeWS(conn, protocol.Message{
 					Type:  protocol.TypeError,
 					Error: "this room has been removed by an organiser",
+					Fatal: true,
 				})
 				s.log.Warn("listener publishing to a removed room", "room", roomID, "ip", ip)
 				return

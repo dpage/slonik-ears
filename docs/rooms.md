@@ -36,7 +36,9 @@ speakers:
 - Reset for next talk empties the transcript, leaving the room ready for
   the next speaker.
 - Remove room takes the room out of the lobby entirely, for a track
-  that has finished for the day.
+  that has finished for the day. A listener still running in that room
+  is told the room has gone and stops, rather than reconnecting and
+  recreating it.
 
 ## What a reset does
 

@@ -146,7 +146,17 @@ func (c *Client) kick() {
 	}
 }
 
-// Run connects and keeps reconnecting until ctx is cancelled.
+// ErrFatal wraps a refusal the server has marked as not worth retrying. The
+// reconnect loop gives up on it rather than coming back, because the two
+// cases it covers are both made worse by persistence: a listener told its room
+// has been removed would recreate the room it was just taken out of, and one
+// told it has been superseded would take the room back off the listener that
+// superseded it, leaving the pair of them fighting over it for the rest of the
+// event.
+var ErrFatal = errors.New("the server refused this listener for good")
+
+// Run connects and keeps reconnecting until ctx is cancelled, or until the
+// server says something that reconnecting cannot fix.
 func (c *Client) Run(ctx context.Context) error {
 	backoff := time.Second
 	const maxBackoff = 30 * time.Second
@@ -161,6 +171,10 @@ func (c *Client) Run(ctx context.Context) error {
 			// merely the shutdown being observed from the inside; it is not
 			// worth reporting to the caller.
 			return nil //nolint:nilerr // deliberate: shutdown is not a failure
+		}
+		if errors.Is(err, ErrFatal) {
+			c.log.Error("giving up: the server will not accept this listener", "error", err)
+			return err
 		}
 		if err != nil {
 			c.log.Warn("publisher disconnected", "error", err, "retry_in", backoff.Round(time.Second))
@@ -225,6 +239,9 @@ func (c *Client) session(ctx context.Context) error {
 		return fmt.Errorf("handshake: %w", err)
 	}
 	if ack.Type == protocol.TypeError {
+		if ack.Fatal {
+			return fmt.Errorf("%w: %s", ErrFatal, ack.Error)
+		}
 		return fmt.Errorf("server refused the connection: %s", ack.Error)
 	}
 	if ack.Type != protocol.TypeAck {
@@ -256,7 +273,11 @@ func (c *Client) session(ctx context.Context) error {
 			_ = conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 			if msg.Type == protocol.TypeError {
 				c.log.Error("server reported a problem", "error", msg.Error)
-				readErr <- errors.New(msg.Error)
+				if msg.Fatal {
+					readErr <- fmt.Errorf("%w: %s", ErrFatal, msg.Error)
+				} else {
+					readErr <- errors.New(msg.Error)
+				}
 				return
 			}
 		}
