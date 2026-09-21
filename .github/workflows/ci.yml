@@ -80,6 +80,26 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # release.yml copies these files into the release tarballs, and only
+      # ever runs from a tag, so a file renamed anywhere else in the tree is
+      # not noticed until somebody tries to cut a release. That is precisely
+      # how v1.0.0-rc1 failed: the operating guide had been renamed months
+      # earlier. The list is read out of release.yml rather than repeated
+      # here, so the two cannot drift apart again.
+      - name: Files the release packages must exist
+        run: |
+          missing=0
+          for f in $(grep -E '^[[:space:]]+cp ' .github/workflows/release.yml \
+                     | tr ' ' '\n' \
+                     | grep -E '^(README\.md|LICENSE|docs/|configs/)' \
+                     | sort -u); do
+            if [ ! -e "$f" ]; then
+              echo "::error::$f is packaged by release.yml but does not exist"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - name: gofmt
         run: |
           unformatted=$(gofmt -l cmd internal web)
