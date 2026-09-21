@@ -123,7 +123,7 @@ The following table describes what each workflow does and when:
 | `ci.yml` | Every push and pull request that touches something other than the documentation | Formatting, vet and golangci-lint; the tests under the race detector on Linux and macOS; govulncheck and npm audit; the web build; and an end to end run that publishes a transcript through a real server and drives the attendee views in a real browser. |
 | `docker.yml` | Main, tags, and changes to the Dockerfile | Builds the image, runs it, checks that it serves the application and is not running as root, then publishes a multi-architecture image to the GitHub container registry. |
 | `docs.yml` | Changes to the documentation | Builds the site with `--strict`, and publishes it to GitHub Pages when the change lands on `main`. |
-| `release.yml` | A tag beginning with `v` | Cross-compiles the server for Linux, macOS and Windows, builds the listener natively on each platform that needs cgo, and attaches the tarballs and `SHA256SUMS` to a GitHub release. |
+| `release.yml` | A tag beginning with `v` | Cross-compiles the server for Linux, macOS and Windows, builds the listener natively on each platform that needs cgo, and attaches the tarballs and `SHA256SUMS` to a GitHub release. A tag carrying a suffix, such as `-rc1`, publishes as a pre-release. |
 
 Dependabot groups its updates weekly, so a quiet week produces one pull
 request rather than nine.
@@ -134,9 +134,19 @@ A release is made by tagging. Push an annotated tag and the release
 workflow does the rest:
 
 ```bash
-git tag -a v0.1.0 -m "First release"
-git push origin v0.1.0
+git tag -a v1.0.1 -m "Release 1.0.1"
+git push origin v1.0.1
 ```
+
+The version the binaries report comes from `git describe`, so the tag
+is the only place a release number is written; nothing in the tree
+needs editing beyond the changelog.
+
+A tag carrying a suffix, such as `v1.1.0-rc1`, publishes as a GitHub
+pre-release rather than as the current release, which is how a
+candidate is handed round for smoke testing before the bare tag is
+pushed to the same commit. A tag that has been pushed is never moved:
+correct a mistake with a new tag at the right commit.
 
 To check the packaging without publishing anything, run `release.yml`
 manually from the Actions tab; a manual run builds every artifact and
