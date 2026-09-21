@@ -208,8 +208,20 @@ jobs:
           Verify a download against `SHA256SUMS` before running it.
           NOTES
 
+          # A tag carrying a suffix (v1.0.0-rc1, -beta2, -alpha1) is a
+          # candidate handed to whoever is smoke testing it, not something to
+          # put in front of the world as the current release. Without this a
+          # release candidate publishes as the latest full release, which is
+          # the one mistake in this workflow that cannot be taken back
+          # quietly.
+          flags=()
+          case "${GITHUB_REF_NAME}" in
+            *-*) flags+=(--prerelease) ;;
+          esac
+
           gh release create "${GITHUB_REF_NAME}" \
             --title "Slonik Ears ${GITHUB_REF_NAME}" \
             --notes-file notes.md \
             --generate-notes \
+            "${flags[@]}" \
             dist/*
