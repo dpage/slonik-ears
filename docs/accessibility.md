@@ -11,7 +11,10 @@ The transcript page is built for someone relying on it to follow a
 talk:
 
 - The transcript is an ARIA live region, announced politely by a screen
-  reader as lines arrive rather than interrupting.
+  reader as lines arrive rather than interrupting. Only additions are
+  announced: committed text is regrouped into sentences as it arrives,
+  and announcing changes as well would have a reader hear the same
+  growing sentence from its beginning several times a second.
 - Text size and contrast are adjustable from the page, and the choice
   is remembered between visits.
 - The page follows the speaker automatically, and stops following when

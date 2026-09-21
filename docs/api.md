@@ -16,6 +16,16 @@ Three kinds of caller exist, and each proves itself differently:
 - An administrator supplies the admin token as a bearer token or as a
   session cookie obtained from the admin session endpoint.
 
+Both session endpoints throttle repeated failures from one address and
+answer 429 once the budget is spent. Only failures count against it, so
+a caller presenting a correct credential is unaffected until somebody
+else at the same address has exhausted the budget by guessing. It
+refills continuously rather than needing to be cleared: a viewer
+passcode allows twenty failures a minute, and an exhausted budget
+admits another attempt about three seconds later; the admin token
+allows ten failures every five minutes, so the equivalent wait is
+around thirty seconds.
+
 ## Public endpoints
 
 The following table describes the endpoints available to viewers:
@@ -56,8 +66,23 @@ The following table describes the streaming endpoints:
 
 A viewer subscribing to `/api/watch` supplies `room` and optionally
 `since`, the highest sequence number it already holds, and receives
-only what it missed. A server response carrying a reset flag means the
-room was cleared and the viewer should discard what it holds.
+only what it missed. A server response carrying a reset flag means what
+the viewer holds does not join up with what it is about to be sent, so
+it should discard the transcript rather than merge. That covers a room
+reset between talks, and a long talk whose retained history has been
+trimmed past where the viewer got to.
+
+Sequence numbers climb for the life of a room and do not restart when
+it is reset, so the first line of the afternoon talk might be numbered
+481. A client tracking a cursor can therefore rely on the number alone
+to tell whether it is holding the current talk.
+
+A listener publishing to `/api/publish` may be sent an error carrying a
+`fatal` flag, which means reconnecting will not help: the room has been
+removed, another listener has taken it over, or the two protocol
+versions do not match. A client receiving one should stop rather than retry,
+because coming back would recreate a room an organiser has just removed
+or take the room off the listener that superseded it.
 
 ## Administrative endpoints
 
