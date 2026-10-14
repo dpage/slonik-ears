@@ -407,17 +407,23 @@ func (e *Engine) enqueue(r audio.Request) {
 	}
 }
 
+// next takes the oldest request off the queue and marks the engine busy in
+// the same critical section. Setting busy any later leaves a moment in which
+// the request is neither queued nor in flight, and a shutdown that looks then
+// sees no work, cancels the worker and loses the last utterance.
 func (e *Engine) next() (audio.Request, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if len(e.queuedFinals) > 0 {
 		r := e.queuedFinals[0]
 		e.queuedFinals = e.queuedFinals[1:]
+		e.busy.Store(true)
 		return r, true
 	}
 	if e.queuedPartia != nil {
 		r := *e.queuedPartia
 		e.queuedPartia = nil
+		e.busy.Store(true)
 		return r, true
 	}
 	return audio.Request{}, false
@@ -470,8 +476,8 @@ func (e *Engine) worker(ctx context.Context) {
 	}
 }
 
+// transcribe expects next to have marked the engine busy already.
 func (e *Engine) transcribe(ctx context.Context, req audio.Request) {
-	e.busy.Store(true)
 	defer e.busy.Store(false)
 
 	timeout := e.cfg.FinalTimeout
