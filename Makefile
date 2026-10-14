@@ -17,7 +17,7 @@ LDFLAGS    := -X github.com/dpage/slonik-ears/internal/version.Version=$(VERSION
 # Which model `make model` fetches. tiny.en (78 MB) through medium.en (1.5 GB);
 # small.en is the usual compromise for live captioning on Apple silicon.
 # Kept in step with .github/workflows/ci.yml so local runs match CI.
-GOLANGCI_VERSION ?= v2.13.2
+GOLANGCI_VERSION ?= v2.14.0
 
 MODEL      ?= large-v3
 MODEL_DIR  ?= $(HOME)/.cache/whisper

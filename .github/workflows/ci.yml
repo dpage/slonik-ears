@@ -111,11 +111,15 @@ jobs:
         run: go vet ./...
 
       # The pinned release must have been built with a Go at least as new as
-      # the one go.mod targets, or it refuses to load the config. v2.13.2 is
-      # built with go1.27.0; bump this in step with the toolchain in go.mod.
+      # the one go.mod targets, or it refuses to load the config, and it must
+      # also be able to read the toolchain's export data: even a patch release
+      # can change that, as go1.27.2 did, failing every package with "export
+      # data version 5 is greater than maximum supported version 4". Bump this
+      # (and GOLANGCI_VERSION in the Makefile) in step with the toolchain in
+      # go.mod, and check the new pair locally before merging.
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.14.0
 
   test:
     name: Test (${{ matrix.os }})
