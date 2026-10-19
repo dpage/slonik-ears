@@ -14,8 +14,8 @@
     "e2e": "node e2e/smoke.mjs"
   },
   "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.0"
   },
   "devDependencies": {
