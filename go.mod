@@ -2,7 +2,7 @@ module github.com/dpage/slonik-ears
 
 go 1.27
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 require (
 	github.com/gen2brain/malgo v0.11.26 // indirect
