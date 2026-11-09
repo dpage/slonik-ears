@@ -33,10 +33,6 @@ outdir=$(cd "$1" && pwd)
 # shellcheck source=/dev/null
 . "$here/VERSION"
 
-NFPM_VERSION=2.48.0
-# From checksums.txt in the nfpm v2.48.0 release.
-NFPM_SHA256=6d7f9a28b2f397934403950fcbba83f598b08d02edbe79a0815b3b4897341750
-
 WORK=${WORK:-$(mktemp -d)}
 src=$WORK/whisper.cpp
 build=$WORK/build
@@ -48,13 +44,7 @@ apt-get install -y --no-install-recommends \
   build-essential cmake git ca-certificates curl libvulkan-dev glslc spirv-headers
 
 # nfpm from its release binary, checked against the published checksum.
-if [ ! -x "$WORK/nfpm" ]; then
-  tarball=nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz
-  curl -fsSL -o "$WORK/$tarball" \
-    "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/$tarball"
-  echo "$NFPM_SHA256  $WORK/$tarball" | sha256sum -c -
-  tar -xzf "$WORK/$tarball" -C "$WORK" nfpm
-fi
+"$root/packaging/install-nfpm.sh" "$WORK"
 
 if [ ! -d "$src" ]; then
   git clone --depth 1 --branch "$WHISPER_CPP_TAG" \

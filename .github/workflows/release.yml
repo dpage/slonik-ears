@@ -6,6 +6,10 @@ on:
   # Runs on demand too, so the packaging can be exercised without cutting a
   # release; only a tag actually publishes one.
   workflow_dispatch:
+  # A pull request that changes the packaging runs everything but the publish
+  # job, so the .debs are built and install-tested before it merges.
+  pull_request:
+    paths: ['packaging/**', '.github/workflows/release.yml']
 
 permissions:
   contents: read
@@ -106,6 +110,21 @@ jobs:
           fi
           rm -rf "${name}"
 
+      - name: Debian package
+        if: matrix.goos == 'linux'
+        env:
+          ARCH: ${{ matrix.goarch }}
+          BINARY: out/ears-server
+        run: |
+          set -euo pipefail
+          VERSION="$(packaging/deb-version.sh "$GITHUB_REF_TYPE" "$GITHUB_REF_NAME" "$GITHUB_SHA")"
+          export VERSION
+          sed 's#data_dir: "./data"#data_dir: "/var/lib/slonik-ears"#' \
+            configs/server.example.yaml > packaging/server/server.yaml
+          grep -q 'data_dir: "/var/lib/slonik-ears"' packaging/server/server.yaml
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
+          "$(go env GOPATH)/bin/nfpm" package --config packaging/server/nfpm.yaml --packager deb --target dist/
+
       - uses: actions/upload-artifact@v7
         with:
           name: package-server-${{ matrix.goos }}-${{ matrix.goarch }}
@@ -163,9 +182,100 @@ jobs:
           name: package-listener-${{ matrix.label }}
           path: dist/*
 
+  deb-listener:
+    name: Listener (Debian package)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Built in trixie so that the cgo binary links against the libraries the
+    # package depends on.
+    container: golang:1.27-trixie
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libasound2-dev libpulse-dev pkg-config
+
+      - name: Build
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          case "$GITHUB_REF_TYPE" in tag) ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          mkdir -p out
+          go build -trimpath -buildvcs=false \
+            -ldflags "-s -w -X github.com/dpage/slonik-ears/internal/version.Version=${version} -X github.com/dpage/slonik-ears/internal/version.Commit=${GITHUB_SHA::7}" \
+            -o out/ears-listener ./cmd/ears-listener
+          ./out/ears-listener --version
+
+      - name: Package
+        env:
+          BINARY: out/ears-listener
+        run: |
+          set -euo pipefail
+          VERSION="$(packaging/deb-version.sh "$GITHUB_REF_TYPE" "$GITHUB_REF_NAME" "$GITHUB_SHA")"
+          export VERSION
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
+          mkdir -p dist
+          "$(go env GOPATH)/bin/nfpm" package --config packaging/listener/nfpm.yaml --packager deb --target dist/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-deb-listener
+          path: dist/*.deb
+
+  deb-whisper:
+    name: whisper-server (Debian package)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container: debian:trixie
+    steps:
+      - uses: actions/checkout@v7
+
+      # Keyed on everything that changes the build, so a cache hit only ever
+      # skips work that would produce the same result.
+      - uses: actions/cache@v6
+        with:
+          path: .whisper-work
+          key: whisper-server-${{ hashFiles('packaging/whisper-server/**', 'packaging/install-nfpm.sh') }}
+
+      # build.sh reuses the whisper.cpp checkout and build it finds in WORK.
+      # GITHUB_WORKSPACE, unlike github.workspace, is the path inside the
+      # container.
+      - name: Build
+        run: WORK="$GITHUB_WORKSPACE/.whisper-work" packaging/whisper-server/build.sh dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-deb-whisper
+          path: dist/*.deb
+
+  deb-test:
+    name: Install-test the Debian packages
+    needs: [server, deb-listener, deb-whisper]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: debian:trixie
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Collect the packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          path: debs
+          merge-multiple: true
+
+      - name: Test
+        run: packaging/test-install.sh debs
+
   publish:
     name: Publish the release
-    needs: [server, listener]
+    needs: [server, listener, deb-listener, deb-whisper, deb-test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Only a tag publishes. A manual run stops after building the packages,
@@ -173,6 +283,8 @@ jobs:
     if: github.ref_type == 'tag'
     permissions:
       contents: write
+      # To start site.yml, which adds the new packages to the apt repository.
+      actions: write
     steps:
       - uses: actions/checkout@v7
 
@@ -188,7 +300,7 @@ jobs:
         run: |
           set -euo pipefail
           ls -la
-          sha256sum ./*.tar.gz ./*.zip | tee SHA256SUMS
+          sha256sum ./*.tar.gz ./*.zip ./*.deb | tee SHA256SUMS
 
       - name: Create the release
         env:
@@ -202,8 +314,14 @@ jobs:
             no dependencies at all: copy the binary to a host and run it. The
             web app is embedded inside it.
           * **`listener`** runs in a room, captures the audio and publishes the
-            transcript. It needs a Whisper backend alongside it — see the
+            transcript. It needs a Whisper backend alongside it; see the
             README for `brew install whisper-cpp`.
+
+          On Debian 13 (trixie), install from the apt repository instead,
+          which also brings in `whisper-server` and keeps everything up to
+          date with `apt upgrade`: see
+          [Installing on Debian](https://dpage.github.io/slonik-ears/debian/).
+          The `.deb` files attached here are the same packages.
 
           Verify a download against `SHA256SUMS` before running it.
           NOTES
@@ -225,3 +343,7 @@ jobs:
             --generate-notes \
             "${flags[@]}" \
             dist/*
+
+          # Rebuild the site, which adds this release's packages to the apt
+          # repository (prereleases are left out there).
+          gh workflow run site.yml --ref main
