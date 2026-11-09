@@ -19,4 +19,4 @@ WHISPER_THREADS=6
 
 # Extra flags, e.g. --no-gpu if the CPU proves faster than Vulkan. Lower
 # --audio-ctx only together with the listener's max_utterance_ms.
-WHISPER_ARGS=--audio-ctx 768
+WHISPER_ARGS="--audio-ctx 768"
