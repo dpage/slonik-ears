@@ -189,6 +189,11 @@ jobs:
     # Built in trixie so that the cgo binary links against the libraries the
     # package depends on.
     container: golang:1.27-trixie
+    # In a container the default shell is sh, which is dash here and does not
+    # understand ${GITHUB_SHA::7}.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
