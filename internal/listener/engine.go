@@ -3,6 +3,7 @@ package listener
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -111,7 +112,13 @@ type Engine struct {
 	mu           sync.Mutex
 	queuedFinals []audio.Request
 	queuedPartia *audio.Request
-	wake         chan struct{}
+	// cancelPartial abandons the preview in flight, if there is one. A
+	// committed utterance must not wait behind a preview of itself: on a
+	// model that takes seconds per request, the worker is almost always busy
+	// with one when the speaker pauses, and that wait went straight onto the
+	// audience's lag.
+	cancelPartial context.CancelFunc
+	wake          chan struct{}
 	// busy marks a transcription in flight, so shutdown waits for it rather
 	// than cancelling the last sentence of the talk.
 	busy atomic.Bool
@@ -380,6 +387,10 @@ func (e *Engine) enqueue(r audio.Request) {
 		// A pending partial belongs to the utterance we have just committed,
 		// so it is now worse than useless.
 		e.queuedPartia = nil
+		if e.cancelPartial != nil {
+			e.cancelPartial()
+			e.cancelPartial = nil
+		}
 		for len(e.queuedFinals) > maxQueuedFinals {
 			lost += time.Duration(e.queuedFinals[0].EndMs-e.queuedFinals[0].StartMs) * time.Millisecond
 			e.queuedFinals = e.queuedFinals[1:]
@@ -486,6 +497,22 @@ func (e *Engine) transcribe(ctx context.Context, req audio.Request) {
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	if req.Kind == audio.KindPartial {
+		e.mu.Lock()
+		if len(e.queuedFinals) > 0 {
+			// A final arrived between next and here; this preview is
+			// already stale.
+			e.mu.Unlock()
+			return
+		}
+		e.cancelPartial = cancel
+		e.mu.Unlock()
+		defer func() {
+			e.mu.Lock()
+			e.cancelPartial = nil
+			e.mu.Unlock()
+		}()
+	}
 
 	opts := asr.Options{
 		Language:  e.cfg.Language,
@@ -505,6 +532,11 @@ func (e *Engine) transcribe(ctx context.Context, req audio.Request) {
 	res, err := e.asr.Transcribe(reqCtx, req.PCM, audio.SampleRate, opts)
 	if err != nil {
 		if ctx.Err() != nil {
+			return
+		}
+		if errors.Is(reqCtx.Err(), context.Canceled) {
+			// Overtaken by a final; not a failure.
+			e.log.Debug("partial abandoned for a final", "audio", audioLen)
 			return
 		}
 		// The detail goes to the log, not to the room. What the engine
