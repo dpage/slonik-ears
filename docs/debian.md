@@ -73,10 +73,12 @@ sudo systemctl enable --now whisper-server
 systemctl --user enable --now slonik-ears-listener
 ```
 
-To have the listener start without anyone logging in, run
-`sudo loginctl enable-linger <your-user>`. Choosing the capture device
-is covered in Capturing Audio, including the PulseAudio monitor sources
-that `--list-devices` marks and that you do not want for a microphone.
+The listener is a user service, so it starts when the room's desktop
+session does and needs that session to be active to reach the sound
+devices; the room machines are expected to log in automatically. Choosing the
+capture device is covered in Capturing Audio, including the PulseAudio
+monitor sources that `--list-devices` marks and that you do not want for
+a microphone.
 Automatic login, power settings and the browser on the room display are
 the operating system's business and not something the package touches.
 
@@ -111,9 +113,10 @@ machine. The service is in the `render` and `video` groups so that it can
 open the graphics device. To force the processor, add `--no-gpu` to
 `WHISPER_ARGS` in `/etc/default/whisper-server` and restart the
 service. Do not guess which is faster: record the room with
-`ears-listener --record /tmp/room.wav`, then replay it with
-`ears-listener --dry-run --file /tmp/room.wav --fast --no-partials`, once
-with and once without `--no-gpu`, and compare the `speed` figure the
+`ears-listener --config /etc/slonik-ears/listener.yaml --dry-run --record /tmp/room.wav`,
+then replay it with
+`ears-listener --config /etc/slonik-ears/listener.yaml --dry-run --file /tmp/room.wav --fast --no-partials`,
+once with and once without `--no-gpu`, and compare the `speed` figure the
 listener logs for each segment, as the Tuning Transcription page
 describes. The one that keeps well above 1 on the machine that will be in
 the room is the one to use.

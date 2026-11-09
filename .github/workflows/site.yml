@@ -67,27 +67,39 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
         run: |
-          if [ -z "$APT_SIGNING_KEY" ]; then
-            echo "::warning::APT_SIGNING_KEY is not set; publishing the docs without the apt repository"
-            exit 0
-          fi
+          # List first, into a variable, so that a failed call stops the step
+          # instead of looking like a repository with no releases.
+          tags=$(gh release list --exclude-pre-releases --exclude-drafts \
+            --limit 100 --json tagName -q '.[].tagName')
           # A release without a .deb (v1.0.0 has none) makes `gh release
           # download` fail, so only ask releases that carry one.
           mkdir debs
           found=0
-          for tag in $(gh release list --exclude-pre-releases --exclude-drafts \
-              --limit 100 --json tagName -q '.[].tagName'); do
+          for tag in $tags; do
             count=$(gh release view "$tag" --json assets \
               --jq '[.assets[].name | select(endswith(".deb"))] | length')
             if [ "$count" -gt 0 ]; then
-              gh release download "$tag" -p '*.deb' -D debs --skip-existing
               found=1
+              break
             fi
           done
           if [ "$found" -eq 0 ]; then
             echo "::warning::No stable release has a .deb yet; publishing the docs without the apt repository"
             exit 0
           fi
+          # Every Pages deployment replaces the whole site, so from here on
+          # going ahead without the repository would take it offline.
+          if [ -z "$APT_SIGNING_KEY" ]; then
+            echo "::error::APT_SIGNING_KEY is not set, but a stable release has a .deb; refusing to deploy a site without /apt/"
+            exit 1
+          fi
+          for tag in $tags; do
+            count=$(gh release view "$tag" --json assets \
+              --jq '[.assets[].name | select(endswith(".deb"))] | length')
+            if [ "$count" -gt 0 ]; then
+              gh release download "$tag" -p '*.deb' -D debs --skip-existing
+            fi
+          done
           packaging/apt/build-repo.sh debs site/apt
           size=$(du -sm site | cut -f1)
           if [ "$size" -gt 800 ]; then

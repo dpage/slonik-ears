@@ -78,10 +78,22 @@ cmake --build "$build" --target whisper-server -j "$(nproc)"
 rm -rf "$stage"
 mkdir -p "$stage"
 install -m 0755 "$build/bin/whisper-server" "$stage/"
-find "$build/bin" -maxdepth 1 -type f -name 'lib*.so*' | while read -r lib; do
+for lib in "$build"/bin/lib*.so*; do
+  [ -f "$lib" ] && [ ! -L "$lib" ] || continue
   soname=$(readelf -d "$lib" | sed -n 's/.*(SONAME).*\[\(.*\)\]/\1/p')
   install -m 0644 "$lib" "$stage/${soname:-$(basename "$lib")}"
 done
+
+# A dropped cmake option or a moved backend would otherwise ship a package
+# that quietly runs on the processor only.
+if [ ! -e "$stage/libggml-vulkan.so" ]; then
+  echo "libggml-vulkan.so is missing from $stage" >&2
+  exit 1
+fi
+if ! ls "$stage"/libggml-cpu-*.so >/dev/null 2>&1; then
+  echo "no libggml-cpu-*.so variant is present in $stage" >&2
+  exit 1
+fi
 strip --strip-unneeded "$stage"/*
 ls -l "$stage"
 

@@ -15,6 +15,12 @@ description: |-
 homepage: https://github.com/dpage/slonik-ears
 license: PostgreSQL
 
+# preinstall.sh runs adduser before the package's own dependencies are
+# configured, and policy only guarantees Pre-Depends to a preinst.
+deb:
+  predepends:
+    - adduser
+
 contents:
   - src: ${BINARY}
     dst: /usr/bin/ears-server

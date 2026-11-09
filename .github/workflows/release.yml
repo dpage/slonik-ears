@@ -317,14 +317,23 @@ jobs:
             transcript. It needs a Whisper backend alongside it; see the
             README for `brew install whisper-cpp`.
 
+          Verify a download against `SHA256SUMS` before running it.
+          NOTES
+
+          # Prereleases never enter the apt repository, so do not point a
+          # smoke tester at it.
+          case "${GITHUB_REF_NAME}" in
+            *-*) ;;
+            *) cat >> notes.md <<'NOTES'
+
           On Debian 13 (trixie), install from the apt repository instead,
           which also brings in `whisper-server` and keeps everything up to
           date with `apt upgrade`: see
           [Installing on Debian](https://dpage.github.io/slonik-ears/debian/).
           The `.deb` files attached here are the same packages.
-
-          Verify a download against `SHA256SUMS` before running it.
           NOTES
+              ;;
+          esac
 
           # A tag carrying a suffix (v1.0.0-rc1, -beta2, -alpha1) is a
           # candidate handed to whoever is smoke testing it, not something to
@@ -345,5 +354,11 @@ jobs:
             dist/*
 
           # Rebuild the site, which adds this release's packages to the apt
-          # repository (prereleases are left out there).
-          gh workflow run site.yml --ref main
+          # repository. Prereleases never enter it, so they need no rebuild.
+          # The release exists by now and cannot be created again, so a
+          # failure here must not turn this run red.
+          case "${GITHUB_REF_NAME}" in
+            *-*) ;;
+            *) gh workflow run site.yml --ref main ||
+                 echo "::warning::Could not start the Site workflow; run it by hand to publish this release to the apt repository" ;;
+          esac
