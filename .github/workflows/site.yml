@@ -71,11 +71,23 @@ jobs:
             echo "::warning::APT_SIGNING_KEY is not set; publishing the docs without the apt repository"
             exit 0
           fi
+          # A release without a .deb (v1.0.0 has none) makes `gh release
+          # download` fail, so only ask releases that carry one.
           mkdir debs
+          found=0
           for tag in $(gh release list --exclude-pre-releases --exclude-drafts \
               --limit 100 --json tagName -q '.[].tagName'); do
-            gh release download "$tag" -p '*.deb' -D debs --skip-existing
+            count=$(gh release view "$tag" --json assets \
+              --jq '[.assets[].name | select(endswith(".deb"))] | length')
+            if [ "$count" -gt 0 ]; then
+              gh release download "$tag" -p '*.deb' -D debs --skip-existing
+              found=1
+            fi
           done
+          if [ "$found" -eq 0 ]; then
+            echo "::warning::No stable release has a .deb yet; publishing the docs without the apt repository"
+            exit 0
+          fi
           packaging/apt/build-repo.sh debs site/apt
           size=$(du -sm site | cut -f1)
           if [ "$size" -gt 800 ]; then
