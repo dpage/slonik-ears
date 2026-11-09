@@ -111,8 +111,8 @@ machine. The service is in the `render` and `video` groups so that it can
 open the graphics device. To force the processor, add `--no-gpu` to
 `WHISPER_ARGS` in `/etc/default/whisper-server` and restart the
 service. Do not guess which is faster: record the room with
-`ears-listener --record`, then replay the recording with
-`ears-listener --dry-run --file <recording> --fast --no-partials`, once
+`ears-listener --record /tmp/room.wav`, then replay it with
+`ears-listener --dry-run --file /tmp/room.wav --fast --no-partials`, once
 with and once without `--no-gpu`, and compare the `speed` figure the
 listener logs for each segment, as the Tuning Transcription page
 describes. The one that keeps well above 1 on the machine that will be in
