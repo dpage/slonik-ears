@@ -5,8 +5,11 @@ After=pipewire.service pipewire-pulse.service
 [Service]
 ExecStart=/usr/bin/ears-listener --config /etc/slonik-ears/listener.yaml
 EnvironmentFile=-%h/.config/slonik-ears/listener.env
-StateDirectory=slonik-ears
-WorkingDirectory=%S/slonik-ears
+# Not "slonik-ears": systemd would see ~/.config/slonik-ears (where the token
+# file lives) and symlink the state directory to it, as if migrating from
+# systemd 253, putting transcripts beside the token.
+StateDirectory=slonik-ears-listener
+WorkingDirectory=%S/slonik-ears-listener
 Restart=on-failure
 RestartSec=5
 
