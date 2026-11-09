@@ -1,6 +1,8 @@
 # Settings for whisper-server.service.
 #
-# The model is a placeholder until it has been measured on the room hardware.
+# large-v3 on Vulkan keeps up comfortably on the room machines (Ryzen 5 7430U,
+# Radeon Vega 7) once --audio-ctx limits the encoder to the fifteen seconds an
+# utterance can last; see Choosing a Model in the documentation.
 # Models are not downloaded by the package; fetch them with:
 #
 #   sudo ears-listener --fetch-model <name> --model-dir /var/lib/whisper-server/models
@@ -13,5 +15,6 @@ WHISPER_HOST=127.0.0.1
 WHISPER_PORT=8081
 WHISPER_THREADS=6
 
-# Extra flags, e.g. --no-gpu if the CPU proves faster than Vulkan.
-WHISPER_ARGS=
+# Extra flags, e.g. --no-gpu if the CPU proves faster than Vulkan. Lower
+# --audio-ctx only together with the listener's max_utterance_ms.
+WHISPER_ARGS=--audio-ctx 768

@@ -2,7 +2,7 @@
 
 The model decides both how accurate the transcript is and whether the
 machine can keep up with the speaker. This page gives measured figures
-for two very different machines so you can choose without guessing.
+for three very different machines so you can choose without guessing.
 
 ## Available models
 
@@ -45,6 +45,35 @@ The turbo variant is the surprise. It is no faster than the full model
 in practice, and it replaced a quietly spoken sentence with a
 repetition of its own prompt, which is the worst way for a transcript
 to be wrong.
+
+## On the room machines
+
+The room machines are small Ryzen 5 7430U computers with an integrated
+Radeon Vega 7, running the packaged `whisper-server` on Vulkan. Replaying
+fifty seconds of continuous speech through the listener, partials
+included, gave these speeds for each committed segment:
+
+| Model and options | Speed per segment |
+| --- | --- |
+| large-v3 with audio-ctx 768 | 1.7x to 2.4x |
+| large-v3-turbo with audio-ctx 768 | 2.9x to 4.2x |
+| medium.en with audio-ctx 768 | 3.0x to 4.1x |
+
+Without `--audio-ctx`, `large-v3` takes 4.3 seconds over a 3.3 second
+utterance, because the encoder always pays for thirty seconds (see
+below). With it, the most accurate model keeps up with room to spare,
+which is why the package defaults to `large-v3` with `--audio-ctx 768`.
+
+Vulkan beats the processor on this machine for every model larger than
+`base.en`. Transcribing the same fifty seconds as a single request:
+
+| Model | Vulkan | Processor only |
+| --- | --- | --- |
+| base.en | 34x | 26x |
+| small.en | 12x | 8.3x |
+| medium.en | 4.7x | 2.7x |
+| large-v3-turbo | 5.8x | 2.3x |
+| large-v3 | 2.8x | 1.4x |
 
 ## On a machine without a GPU
 

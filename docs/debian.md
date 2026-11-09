@@ -52,9 +52,9 @@ sudo ears-listener --fetch-model large-v3 \
   --model-dir /var/lib/whisper-server/models
 ```
 
-Edit `/etc/default/whisper-server` so that `WHISPER_MODEL` names the
-file you fetched; the default is a placeholder until a model has been
-measured on room hardware. Then edit `/etc/slonik-ears/listener.yaml`
+The default in `/etc/default/whisper-server` is `large-v3` with
+`--audio-ctx 768`, which was measured on the room machines; if you
+fetched a different model, change `WHISPER_MODEL` to name it. Then edit `/etc/slonik-ears/listener.yaml`
 for the room name and the address of the relay, and put the publish
 token in a file only you can read:
 
