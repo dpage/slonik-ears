@@ -22,7 +22,6 @@ GOLANGCI_VERSION ?= v2.14.0
 MODEL      ?= large-v3
 MODEL_DIR  ?= $(HOME)/.cache/whisper
 MODEL_FILE := $(MODEL_DIR)/ggml-$(MODEL).bin
-MODEL_URL  := https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$(MODEL).bin
 
 .PHONY: all build web server listener dist test race lint golangci vuln smoke fmt vet tidy clean demo run-server run-listener model whisper-server help
 
@@ -147,24 +146,17 @@ run-listener: listener
 model: $(MODEL_FILE)
 
 $(MODEL_FILE):
-	@mkdir -p $(MODEL_DIR)
-	@echo "Fetching ggml-$(MODEL).bin ..."
-	curl -L --progress-bar -o $(MODEL_FILE).part $(MODEL_URL)
-	@mv $(MODEL_FILE).part $(MODEL_FILE)
-	@echo "Saved to $(MODEL_FILE)"
+	$(MAKE) listener
+	./$(BIN)/ears-listener --fetch-model $(MODEL) --model-dir $(MODEL_DIR)
 
 VAD_MODEL  := $(MODEL_DIR)/ggml-silero-v5.1.2.bin
-VAD_URL    := https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin
 
 ## vad-model: download the Silero voice detection model (under 1 MB)
 vad-model: $(VAD_MODEL)
 
 $(VAD_MODEL):
-	@mkdir -p $(MODEL_DIR)
-	@echo "Fetching the Silero VAD model ..."
-	curl -L --progress-bar -o $(VAD_MODEL).part $(VAD_URL)
-	@mv $(VAD_MODEL).part $(VAD_MODEL)
-	@echo "Saved to $(VAD_MODEL)"
+	$(MAKE) listener
+	./$(BIN)/ears-listener --fetch-model silero-v5.1.2 --model-dir $(MODEL_DIR)
 
 ## whisper-server: start whisper.cpp's server with the downloaded model
 whisper-server: $(MODEL_FILE) $(VAD_MODEL)

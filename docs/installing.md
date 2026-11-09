@@ -68,19 +68,19 @@ producing release archives for other platforms.
 
 ## Fetching a model
 
-Models are downloaded into `~/.cache/whisper` and are chosen with the
-`MODEL` variable:
+The listener downloads models itself. They go into `~/.cache/whisper`
+unless you pass `--model-dir`, and each file is checked against a
+pinned checksum before it is put in place:
 
 ```bash
-make model MODEL=large-v3
+ears-listener --fetch-model large-v3
 ```
 
-Also fetch the voice detection model, which is under a megabyte and
-prevents the model inventing text over silence:
-
-```bash
-make vad-model
-```
+That command also fetches the Silero voice detection model, which is
+under a megabyte and prevents the model inventing text over silence.
+Running it again leaves files that are already present alone. From a
+source checkout, `make model MODEL=large-v3` does the same thing, and
+`make vad-model` fetches only the voice detection model.
 
 The Choosing a Model document explains which model suits which machine.
 

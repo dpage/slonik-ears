@@ -6,8 +6,10 @@ for two very different machines so you can choose without guessing.
 
 ## Available models
 
-Models are fetched with `make model MODEL=<name>` into
-`~/.cache/whisper`. The following table lists the usual choices and
+Models are fetched with `ears-listener --fetch-model <name>` into
+`~/.cache/whisper` (or the directory given by `--model-dir`); from a
+source checkout, `make model MODEL=<name>` does the same. The
+following table lists the usual choices and
 their sizes:
 
 | Model | Size | Notes |

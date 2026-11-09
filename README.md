@@ -89,8 +89,10 @@ one listener per room. On a Mac:
 ```bash
 brew install go node whisper-cpp
 make build
-make model MODEL=large-v3
+./bin/ears-listener --fetch-model large-v3
 ```
+
+`make model MODEL=large-v3` does the same from a checkout.
 
 Then start `whisper-server`, `ears-server` and `ears-listener`, in that order.
 For the relay on a cloud instance there is a published container image,
