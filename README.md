@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/dpage/slonik-ears/actions/workflows/ci.yml/badge.svg)](https://github.com/dpage/slonik-ears/actions/workflows/ci.yml)
 [![Container image](https://github.com/dpage/slonik-ears/actions/workflows/docker.yml/badge.svg)](https://github.com/dpage/slonik-ears/actions/workflows/docker.yml)
-[![Docs](https://github.com/dpage/slonik-ears/actions/workflows/docs.yml/badge.svg)](https://dpage.github.io/slonik-ears/)
+[![Docs](https://github.com/dpage/slonik-ears/actions/workflows/site.yml/badge.svg)](https://dpage.github.io/slonik-ears/)
 
 Live transcription for events. A listener sits in each room, hears the talk,
 has it transcribed by a Whisper model, and streams the text to a server that
@@ -109,6 +109,36 @@ sleeping Mac stops transcribing. [Capturing Audio](docs/audio.md) covers both,
 along with taking a feed from the mixing desk rather than trusting a laptop
 microphone.
 
+### Installing on Debian
+
+Debian 13 has packages from a signed apt repository:
+
+```bash
+sudo curl -fsSLo /etc/apt/keyrings/slonik-ears.asc \
+  https://dpage.github.io/slonik-ears/apt/slonik-ears.asc
+```
+
+Create `/etc/apt/sources.list.d/slonik-ears.sources` containing:
+
+```text
+Types: deb
+URIs: https://dpage.github.io/slonik-ears/apt/
+Suites: stable
+Components: main
+Signed-By: /etc/apt/keyrings/slonik-ears.asc
+```
+
+Then install `slonik-ears-listener` on a room machine, or
+`slonik-ears-server` on the cloud instance:
+
+```bash
+sudo apt update
+sudo apt install slonik-ears-listener
+```
+
+[Installing on Debian](https://dpage.github.io/slonik-ears/debian/) covers
+configuration, enabling the services and upgrading.
+
 ### Platforms
 
 | | Runs on | Notes |
@@ -142,6 +172,7 @@ The individual pages are readable as plain Markdown without building anything:
 | [Quick Start](docs/quick_start.md) | Seeing it work with no model and no microphone |
 | [Event Checklist](docs/running_an_event.md) | Planning, the day before, and the day itself |
 | [Installing](docs/installing.md) | Prerequisites, building, and platform differences |
+| [Installing on Debian](docs/debian.md) | The apt repository, and setting up a room machine or server |
 | [Choosing a Model](docs/models.md) | Measured accuracy and speed on different machines |
 | [Capturing Audio](docs/audio.md) | Devices, channels, levels and permissions |
 | [Running the Server](docs/server.md) | Tokens, persistence and where to run the relay |

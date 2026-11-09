@@ -2,7 +2,7 @@ name: CI
 
 # This workflow builds and tests the Go code and the web application, so the
 # things it ignores are the ones that cannot change either: the documentation,
-# which docs.yml builds instead; the deployment examples, which nothing here
+# which site.yml builds instead; the deployment examples, which nothing here
 # reads; and the other workflows, which have their own triggers.
 #
 # The filter is an exclusion rather than an inclusion on purpose: a path
@@ -24,7 +24,7 @@ on:
       - 'deploy/**'
       - '.github/dependabot.yml'
       - '.github/workflows/actionlint.yml'
-      - '.github/workflows/docs.yml'
+      - '.github/workflows/site.yml'
       - '.github/workflows/docker.yml'
       - '.github/workflows/release.yml'
   pull_request:
@@ -37,7 +37,7 @@ on:
       - 'deploy/**'
       - '.github/dependabot.yml'
       - '.github/workflows/actionlint.yml'
-      - '.github/workflows/docs.yml'
+      - '.github/workflows/site.yml'
       - '.github/workflows/docker.yml'
       - '.github/workflows/release.yml'
   workflow_dispatch:

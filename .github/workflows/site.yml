@@ -1,8 +1,11 @@
-name: Docs
+name: Site
 
-# Only the documentation triggers this. A change to the Go code or the web
-# application cannot alter the rendered site, so rebuilding and republishing
-# it for one would be work nobody asked for.
+# Builds the documentation and the apt repository into one GitHub Pages
+# site. Only the documentation and the apt tooling trigger it: a change to
+# the Go code or the web application cannot alter the rendered site, so
+# rebuilding and republishing it for one would be work nobody asked for.
+# release.yml starts it by hand after publishing a release, which is how a new
+# release reaches the apt repository.
 on:
   push:
     branches: [main]
@@ -10,13 +13,15 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'requirements-docs.txt'
-      - '.github/workflows/docs.yml'
+      - 'packaging/apt/**'
+      - '.github/workflows/site.yml'
   pull_request:
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'requirements-docs.txt'
-      - '.github/workflows/docs.yml'
+      - 'packaging/apt/**'
+      - '.github/workflows/site.yml'
   workflow_dispatch:
 
 # Least privilege by default; the deploy job asks for what it needs.
@@ -26,7 +31,7 @@ permissions:
 # A new push to a pull request makes the previous run pointless, but a deploy
 # already under way is left to finish rather than being cancelled part done.
 concurrency:
-  group: docs-${{ github.ref }}
+  group: site-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -51,6 +56,31 @@ jobs:
       # request rather than discovering it after publication.
       - name: Build
         run: mkdocs build --strict
+
+      # The repository holds every stable release, newest first, so that
+      # where two releases carry a file of the same name (whisper-server does)
+      # the newest copy is the one that is kept. Pull requests skip this: they
+      # prove the docs build and have no business holding the signing key.
+      - name: Build the apt repository
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          if [ -z "$APT_SIGNING_KEY" ]; then
+            echo "::warning::APT_SIGNING_KEY is not set; publishing the docs without the apt repository"
+            exit 0
+          fi
+          mkdir debs
+          for tag in $(gh release list --exclude-pre-releases --exclude-drafts \
+              --limit 100 --json tagName -q '.[].tagName'); do
+            gh release download "$tag" -p '*.deb' -D debs --skip-existing
+          done
+          packaging/apt/build-repo.sh debs site/apt
+          size=$(du -sm site | cut -f1)
+          if [ "$size" -gt 800 ]; then
+            echo "::warning::The site is ${size} MB; GitHub Pages limits it to 1 GB"
+          fi
 
       - name: Upload for deployment
         if: github.event_name != 'pull_request'

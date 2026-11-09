@@ -90,6 +90,10 @@ The `deploy/` directory contains a LaunchAgent example for macOS. The
 listener must run as an agent rather than a daemon, because microphone
 access on macOS belongs to a logged-in session and a daemon has none.
 
+On Debian 13, the listener, `whisper-server` and the relay are
+available as packages from a signed apt repository, with systemd units
+already written. The Installing on Debian document covers it.
+
 A container image of the server is published to the GitHub container
 registry, and is usually the easiest way to run the relay on a cloud
 instance:
