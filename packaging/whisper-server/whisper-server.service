@@ -9,6 +9,10 @@ ExecStart=/usr/bin/whisper-server --model ${WHISPER_MODEL} --host ${WHISPER_HOST
 DynamicUser=yes
 # render and video give access to /dev/dri for the Vulkan backend.
 SupplementaryGroups=render video
+# The dynamic user has no home, so give Mesa somewhere writable for its
+# shader cache; without it every start recompiles the Vulkan shaders.
+CacheDirectory=whisper-server
+Environment=XDG_CACHE_HOME=%C/whisper-server
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=yes
