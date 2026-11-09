@@ -49,20 +49,26 @@ to be wrong.
 ## On the room machines
 
 The room machines are small Ryzen 5 7430U computers with an integrated
-Radeon Vega 7, running the packaged `whisper-server` on Vulkan. Replaying
-fifty seconds of continuous speech through the listener, partials
-included, gave these speeds for each committed segment:
+Radeon Vega 7, running the packaged `whisper-server` on Vulkan. What
+matters in the room is the lag: how long after the speaker pauses the
+line reaches the audience. Replaying two minutes of real conversation
+captured through the room microphone, in real time with partials on and
+`--audio-ctx 768`, gave these figures:
 
-| Model and options | Speed per segment |
-| --- | --- |
-| large-v3 with audio-ctx 768 | 1.7x to 2.4x |
-| large-v3-turbo with audio-ctx 768 | 2.9x to 4.2x |
-| medium.en with audio-ctx 768 | 3.0x to 4.1x |
+| Model | Median lag | Worst lag | Transcript |
+| --- | --- | --- | --- |
+| large-v3 | 7.1 s | 8.2 s | Clean |
+| medium.en | 3.5 s | 4.6 s | A few misheard phrases |
+| large-v3-turbo | 3.8 s | 11.5 s | Invented words over crosstalk |
+
+The package defaults to `large-v3`, preferring the accurate transcript
+to the faster one; change `WHISPER_MODEL` to `medium.en` if the room
+would rather read the words sooner. Turning partials off saves `large-v3`
+about another second.
 
 Without `--audio-ctx`, `large-v3` takes 4.3 seconds over a 3.3 second
 utterance, because the encoder always pays for thirty seconds (see
-below). With it, the most accurate model keeps up with room to spare,
-which is why the package defaults to `large-v3` with `--audio-ctx 768`.
+below).
 
 Vulkan beats the processor on this machine for every model larger than
 `base.en`. Transcribing the same fifty seconds as a single request:

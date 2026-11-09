@@ -1,8 +1,10 @@
 # Settings for whisper-server.service.
 #
-# large-v3 on Vulkan keeps up comfortably on the room machines (Ryzen 5 7430U,
-# Radeon Vega 7) once --audio-ctx limits the encoder to the fifteen seconds an
-# utterance can last; see Choosing a Model in the documentation.
+# large-v3 on Vulkan gives the most accurate transcript on the room machines
+# (Ryzen 5 7430U, Radeon Vega 7), with each line arriving about seven seconds
+# after the speaker pauses once --audio-ctx limits the encoder to the fifteen
+# seconds an utterance can last. medium.en halves that wait at some cost in
+# accuracy; see Choosing a Model in the documentation.
 # Models are not downloaded by the package; fetch them with:
 #
 #   sudo ears-listener --fetch-model <name> --model-dir /var/lib/whisper-server/models
