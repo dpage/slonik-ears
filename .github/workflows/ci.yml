@@ -100,6 +100,9 @@ jobs:
           done
           exit "$missing"
 
+      - name: Debian package version mapping
+        run: packaging/test-deb-version.sh
+
       - name: gofmt
         run: |
           unformatted=$(gofmt -l cmd internal web)
