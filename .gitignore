@@ -29,3 +29,8 @@
 
 # The built documentation site.
 /site/
+
+# Claude Code working files: plans, specs and worktrees are never committed.
+/.claude/plans/
+/.claude/specs/
+/.claude/worktrees/
