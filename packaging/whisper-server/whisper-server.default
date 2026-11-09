@@ -1,0 +1,17 @@
+# Settings for whisper-server.service.
+#
+# The model is a placeholder until it has been measured on the room hardware.
+# Models are not downloaded by the package; fetch them with:
+#
+#   sudo ears-listener --fetch-model <name> --model-dir /var/lib/whisper-server/models
+
+WHISPER_MODEL=/var/lib/whisper-server/models/ggml-large-v3.bin
+WHISPER_VAD_MODEL=/var/lib/whisper-server/models/ggml-silero-v5.1.2.bin
+
+# The listener expects whisper-server on 127.0.0.1:8081 by default.
+WHISPER_HOST=127.0.0.1
+WHISPER_PORT=8081
+WHISPER_THREADS=6
+
+# Extra flags, e.g. --no-gpu if the CPU proves faster than Vulkan.
+WHISPER_ARGS=

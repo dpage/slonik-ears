@@ -1,0 +1,20 @@
+[Unit]
+Description=whisper.cpp speech recognition server for Slonik Ears
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/default/whisper-server
+ExecStartPre=/usr/lib/slonik-ears/whisper/check-model
+ExecStart=/usr/bin/whisper-server --model ${WHISPER_MODEL} --host ${WHISPER_HOST} --port ${WHISPER_PORT} --threads ${WHISPER_THREADS} --vad --vad-model ${WHISPER_VAD_MODEL} $WHISPER_ARGS
+DynamicUser=yes
+# render and video give access to /dev/dri for the Vulkan backend.
+SupplementaryGroups=render video
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
