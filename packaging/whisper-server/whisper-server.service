@@ -5,7 +5,12 @@ After=network.target
 [Service]
 EnvironmentFile=/etc/default/whisper-server
 ExecStartPre=/usr/lib/slonik-ears/whisper/check-model
-ExecStart=/usr/bin/whisper-server --model ${WHISPER_MODEL} --host ${WHISPER_HOST} --port ${WHISPER_PORT} --threads ${WHISPER_THREADS} --vad --vad-model ${WHISPER_VAD_MODEL} $WHISPER_ARGS
+# The VAD model is loaded but only applied when a request asks for it
+# (whisper_vad in the listener's config). --vad would force it on for every
+# request, and the listener then asks for verbose_json, which whisper.cpp
+# cannot produce for audio its voice detection has emptied: on a silent chunk
+# the request fails, and the listener's startup check is a silent chunk.
+ExecStart=/usr/bin/whisper-server --model ${WHISPER_MODEL} --host ${WHISPER_HOST} --port ${WHISPER_PORT} --threads ${WHISPER_THREADS} --vad-model ${WHISPER_VAD_MODEL} $WHISPER_ARGS
 DynamicUser=yes
 # render and video give access to /dev/dri for the Vulkan backend.
 SupplementaryGroups=render video
