@@ -259,9 +259,27 @@ jobs:
           name: package-deb-whisper
           path: dist/*.deb
 
+  deb-sherpa:
+    name: sherpa-onnx-server (Debian package)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: debian:trixie
+    steps:
+      - uses: actions/checkout@v7
+
+      # Repackages sherpa-onnx's prebuilt binary, so there is nothing to
+      # compile; build.sh checks the download against the checksums in VERSION.
+      - name: Build
+        run: packaging/sherpa-onnx-server/build.sh dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-deb-sherpa
+          path: dist/*.deb
+
   deb-test:
     name: Install-test the Debian packages
-    needs: [server, deb-listener, deb-whisper]
+    needs: [server, deb-listener, deb-whisper, deb-sherpa]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container: debian:trixie
@@ -280,7 +298,7 @@ jobs:
 
   publish:
     name: Publish the release
-    needs: [server, listener, deb-listener, deb-whisper, deb-test]
+    needs: [server, listener, deb-listener, deb-whisper, deb-sherpa, deb-test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Only a tag publishes. A manual run stops after building the packages,
@@ -320,7 +338,8 @@ jobs:
             web app is embedded inside it.
           * **`listener`** runs in a room, captures the audio and publishes the
             transcript. It needs a Whisper backend alongside it; see the
-            README for `brew install whisper-cpp`.
+            README for `brew install whisper-cpp`. On Linux, a sherpa-onnx
+            server running Parakeet is the alternative.
 
           Verify a download against `SHA256SUMS` before running it.
           NOTES
@@ -332,7 +351,8 @@ jobs:
             *) cat >> notes.md <<'NOTES'
 
           On Debian 13 (trixie), install from the apt repository instead,
-          which also brings in `whisper-server` and keeps everything up to
+          which also brings in `whisper-server` (or `sherpa-onnx-server`, for
+          the Parakeet backend) and keeps everything up to
           date with `apt upgrade`: see
           [Installing on Debian](https://dpage.github.io/slonik-ears/debian/).
           The `.deb` files attached here are the same packages.

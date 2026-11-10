@@ -44,7 +44,74 @@ func Lookup(name string) (Model, error) {
 			return m, nil
 		}
 	}
-	return Model{}, fmt.Errorf("unknown model %q; available models: %s", name, strings.Join(Names(), ", "))
+	all := append(Names(), BundleNames()...)
+	return Model{}, fmt.Errorf("unknown model %q; available models: %s", name, strings.Join(all, ", "))
+}
+
+// Bundle is a model made of several files that are stored together in a
+// directory named after it, as the sherpa-onnx Parakeet models are.
+type Bundle struct {
+	// Name is the bundle name, and the directory its files are stored in.
+	Name string
+	// Files are the pieces of the bundle. Each file's Name is the bundle name,
+	// a slash and the file name.
+	Files []Model
+}
+
+// BundleNames returns every bundle name in the catalogue, sorted.
+func BundleNames() []string {
+	names := make([]string, 0, len(bundles))
+	for _, b := range bundles {
+		names = append(names, b.Name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// LookupBundle returns the named bundle, and false if there is none.
+func LookupBundle(name string) (Bundle, bool) {
+	for _, b := range bundles {
+		if b.Name == name {
+			return b, true
+		}
+	}
+	return Bundle{}, false
+}
+
+// parakeetBundle builds a bundle from the sherpa-onnx repository at the pinned
+// commit named in base, with the four files each Parakeet model needs.
+func parakeetBundle(name, base string, files [4]Model) Bundle {
+	b := Bundle{Name: name}
+	for _, f := range files {
+		f.Name = name + "/" + f.File
+		f.URL = base + f.File
+		b.Files = append(b.Files, f)
+	}
+	return b
+}
+
+// The Parakeet bundles were taken from the Hugging Face tree API at the pinned
+// commits named in their URLs, in the same way as the table further down:
+// SHA256 is each entry's lfs.oid and Size its lfs.size.
+var bundles = []Bundle{
+	parakeetBundle(
+		"parakeet-tdt-0.6b-v2-int8",
+		"https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/resolve/84b478d541cdbf0c296a7ab5f1e20a6f8f998114/",
+		[4]Model{
+			{File: "encoder.int8.onnx", SHA256: "92a10bd9c23936ea0566c29f963bc57c2a5df4261b6a8921c39abea66557ca8b", Size: 652282309},
+			{File: "decoder.int8.onnx", SHA256: "4d097bae3bac5c96018d5293ba39f1b657296102b142affda40378f38b020f41", Size: 7257753},
+			{File: "joiner.int8.onnx", SHA256: "77a29f3e5ac7d37074e0af465391b80f314015d5b97f0f90c6c7767f1d56f428", Size: 1739080},
+			{File: "tokens.txt", SHA256: "ec182b70dd42113aff6c5372c75cac58c952443eb22322f57bbd7f53977d497d", Size: 9384},
+		}),
+	parakeetBundle(
+		"parakeet-tdt-0.6b-v3-int8",
+		"https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/ed5d745623472f97cfc2e6c2916ee248798fc5a8/",
+		[4]Model{
+			{File: "encoder.int8.onnx", SHA256: "1afbe69c1ffdabee94755f42e4daf1d93549131a3da11356bda84fcef0f2c479", Size: 652282294},
+			{File: "decoder.int8.onnx", SHA256: "0222a86147299d4dee90edf95b6d13827edb42ad8b7c9cf0b2582f030937c0b5", Size: 11845274},
+			{File: "joiner.int8.onnx", SHA256: "cbd02f3696e9944970111fb439d9c3fd365a80374565f13f2b9c7007d253fc98", Size: 6355277},
+			{File: "tokens.txt", SHA256: "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d", Size: 93939},
+		}),
 }
 
 // VAD returns the Silero voice-activity-detection model.

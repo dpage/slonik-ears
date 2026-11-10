@@ -1,12 +1,13 @@
 # Installing on Debian
 
 Debian 13 (trixie) machines can install Slonik Ears from a signed apt
-repository instead of building it. There are three packages:
+repository instead of building it. There are four packages:
 `slonik-ears-listener` for a room machine, which pulls in
-`whisper-server` (whisper.cpp built with Vulkan support), and
-`slonik-ears-server` for the relay on a cloud instance. The listener and
-`whisper-server` are built for amd64; the server is built for amd64 and
-arm64.
+`whisper-server` (whisper.cpp built with Vulkan support) or
+`sherpa-onnx-server` (for the Parakeet backend), and
+`slonik-ears-server` for the relay on a cloud instance. The listener,
+`whisper-server` and `sherpa-onnx-server` are built for amd64; the
+server is built for amd64 and arm64.
 
 No package enables or starts a service, and none downloads a model. You
 edit the configuration first and then turn things on, which keeps an
@@ -83,6 +84,59 @@ a microphone.
 Automatic login, power settings and the browser on the room display are
 the operating system's business and not something the package touches.
 
+## Using Parakeet instead of Whisper
+
+The `sherpa-onnx-server` package runs sherpa-onnx's WebSocket server for
+the Parakeet backend, which answers much faster than Whisper on the room
+machines (see Choosing a Model). The listener package depends on
+`whisper-server | sherpa-onnx-server`, so installing the listener alone
+still brings `whisper-server`; install `sherpa-onnx-server` first, or as
+well, to use Parakeet:
+
+```bash
+sudo apt install sherpa-onnx-server slonik-ears-listener
+```
+
+Fetch a model into the directory the service reads from:
+
+```bash
+sudo ears-listener --fetch-model parakeet-tdt-0.6b-v2-int8 \
+  --model-dir /var/lib/sherpa-onnx-server/models
+```
+
+`/etc/default/sherpa-onnx-server` names that model in `SHERPA_MODEL_DIR`
+and sets the port (8082) and `SHERPA_THREADS`; change `SHERPA_MODEL_DIR`
+if you fetched `parakeet-tdt-0.6b-v3-int8` instead. The package does not
+enable the service. Enable it, change `backend` from `whisper` to
+`parakeet` in `/etc/slonik-ears/listener.yaml`, and restart the
+listener:
+
+```bash
+sudo systemctl enable --now sherpa-onnx-server
+```
+
+```yaml
+backend: parakeet
+parakeet_url: "ws://127.0.0.1:8082"
+```
+
+```bash
+systemctl --user restart slonik-ears-listener
+```
+
+Once the listener is working with Parakeet, you can stop whisper-server
+so that it does not keep its model in memory or start at boot:
+
+```bash
+sudo systemctl disable --now whisper-server
+```
+
+The sherpa-onnx server listens on every network interface, so the
+service unit restricts it, through systemd's `IPAddressAllow`, to
+connections from the machine itself. Leave the listener pointing at
+`127.0.0.1`. Parakeet cannot translate, so `translate: true` is
+refused at start-up.
+
 ## The cloud server
 
 On the relay instance install the server package instead:
@@ -134,6 +188,7 @@ idle:
 
 ```bash
 sudo systemctl restart whisper-server
+sudo systemctl restart sherpa-onnx-server
 systemctl --user restart slonik-ears-listener
 sudo systemctl restart slonik-ears-server
 ```

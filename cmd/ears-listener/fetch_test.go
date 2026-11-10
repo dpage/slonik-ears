@@ -96,6 +96,60 @@ func TestFetchModelsVADNameFetchesOnlyVAD(t *testing.T) {
 	}
 }
 
+func TestFetchModelsFetchesBundleWithoutVAD(t *testing.T) {
+	body := []byte(strings.Repeat("not a real model, just test bytes\n", 64))
+	var requested []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested = append(requested, r.URL.Path)
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+	sum := sha256.Sum256(body)
+	file := func(f string) models.Model {
+		return models.Model{
+			Name:   "test-bundle/" + f,
+			File:   f,
+			URL:    srv.URL + "/" + f,
+			SHA256: hex.EncodeToString(sum[:]),
+			Size:   int64(len(body)),
+		}
+	}
+	origBundle, origVAD := lookupBundle, vad
+	t.Cleanup(func() { lookupBundle, vad = origBundle, origVAD })
+	lookupBundle = func(name string) (models.Bundle, bool) {
+		if name == "test-bundle" {
+			return models.Bundle{Name: name, Files: []models.Model{file("encoder.onnx"), file("tokens.txt")}}, true
+		}
+		return models.Bundle{}, false
+	}
+	vad = func() models.Model {
+		t.Error("the VAD model must not be looked up for a bundle")
+		return models.Model{}
+	}
+
+	dir := t.TempDir()
+	var out bytes.Buffer
+	if err := fetchModels(context.Background(), "test-bundle", dir, &out, false, http.DefaultClient); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"encoder.onnx", "tokens.txt"} {
+		if _, err := os.Stat(filepath.Join(dir, "test-bundle", f)); err != nil {
+			t.Errorf("missing %s: %v", f, err)
+		}
+	}
+	if len(requested) != 2 {
+		t.Errorf("requested %v, want exactly the two bundle files", requested)
+	}
+
+	out.Reset()
+	if err := fetchModels(context.Background(), "test-bundle", dir, &out, false, http.DefaultClient); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(out.String(), "already present: "); n != 2 || len(requested) != 2 {
+		t.Errorf("second run: %d 'already present' lines, %d requests:\n%s", n, len(requested), out.String())
+	}
+}
+
 func TestFetchModelsUnknownName(t *testing.T) {
 	fakeCatalogue(t)
 	dir := t.TempDir()

@@ -11,6 +11,11 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Debian 13 packages for the listener, `whisper-server` (whisper.cpp
   with Vulkan support) and the relay server, published as a signed apt
   repository alongside the documentation and attached to each release.
+- A Parakeet transcription backend, chosen with `backend: parakeet`,
+  which talks to sherpa-onnx's WebSocket server on the processor alone
+  and answers several times faster than Whisper on the room machines.
+  The `sherpa-onnx-server` Debian package runs that server, and
+  `--fetch-model` downloads the Parakeet models.
 
 ## [1.0.0] - 2026-09-21
 

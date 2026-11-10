@@ -45,7 +45,7 @@ func run() error {
 		listDevices = flag.Bool("list-devices", false, "list audio capture devices and exit")
 		showVersion = flag.Bool("version", false, "print the version and exit")
 		dryRun      = flag.Bool("dry-run", false, "transcribe to the terminal without connecting to a server")
-		fetchModel  = flag.String("fetch-model", "", "download the named Whisper model (and the Silero voice detection model) and exit; e.g. large-v3")
+		fetchModel  = flag.String("fetch-model", "", "download the named Whisper model (and the Silero voice detection model) or Parakeet model and exit; e.g. large-v3 or parakeet-tdt-0.6b-v2-int8")
 		modelDir    = flag.String("model-dir", "", "directory for --fetch-model (default ~/.cache/whisper)")
 		printVocab  = flag.Bool("print-vocabulary", false, "print the glossary this configuration would use, one term per line, and exit")
 	)
@@ -324,6 +324,9 @@ func newTranscriber(cfg listener.Config, log *slog.Logger) (asr.Transcriber, err
 		log.Warn("using the mock transcription backend: the text is invented, not heard")
 		return &asr.Mock{Latency: 200 * time.Millisecond}, nil
 	}
+	if cfg.Backend == "parakeet" {
+		return newParakeetTranscriber(cfg, log)
+	}
 	client, err := asr.NewWhisper(asr.WhisperConfig{
 		Endpoint:  cfg.Whisper,
 		APIKey:    cfg.APIKey,
@@ -343,6 +346,25 @@ func newTranscriber(cfg listener.Config, log *slog.Logger) (asr.Transcriber, err
 		return nil, fmt.Errorf("cannot reach the transcription backend at %s: %w\n\nStart one with:\n  whisper-server --model ~/.cache/whisper/ggml-large-v3.bin --port 8081\n(install it with `brew install whisper-cpp`), or pass --mock to try the rest of\nthe system without a model", cfg.Whisper, err)
 	}
 	log.Info("transcription backend ready", "backend", client.Name(), "endpoint", cfg.Whisper)
+	return client, nil
+}
+
+func newParakeetTranscriber(cfg listener.Config, log *slog.Logger) (asr.Transcriber, error) {
+	client, err := asr.NewParakeet(asr.ParakeetConfig{
+		Endpoint: cfg.Parakeet,
+		Timeout:  cfg.FinalTimeoutDuration(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Fail loudly at startup rather than silently during the opening keynote.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx); err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("cannot reach the transcription backend at %s: %w\n\nStart it with:\n  sudo systemctl start sherpa-onnx-server\nIf the model is not installed yet, fetch it with:\n  sudo ears-listener --fetch-model parakeet-tdt-0.6b-v2-int8 --model-dir /var/lib/sherpa-onnx-server/models\nor pass --mock to try the rest of the system without a model", cfg.Parakeet, err)
+	}
+	log.Info("transcription backend ready", "backend", client.Name(), "endpoint", cfg.Parakeet)
 	return client, nil
 }
 
@@ -403,7 +425,7 @@ Flags:
 	flag.PrintDefaults()
 	fmt.Fprint(os.Stderr, `
 Environment:
-  EARS_SERVER, EARS_ROOM, EARS_PUBLISH_TOKEN, EARS_WHISPER_URL, EARS_API_KEY
+  EARS_SERVER, EARS_ROOM, EARS_PUBLISH_TOKEN, EARS_WHISPER_URL, EARS_PARAKEET_URL, EARS_API_KEY
 
 Examples:
   # Download a model (plus the voice detection model) into ~/.cache/whisper:
@@ -415,6 +437,9 @@ Examples:
   # A real room, transcribed locally by whisper.cpp:
   whisper-server --model ~/.cache/whisper/ggml-large-v3.bin --port 8081 &
   ears-listener --room main-hall --title "Main Hall" --token "$EARS_PUBLISH_TOKEN"
+
+  # The same room, transcribed by a sherpa-onnx server running Parakeet:
+  ears-listener --room main-hall --backend parakeet --parakeet ws://127.0.0.1:8082 ...
 
   # Teach the model your jargon: start from the built-in Postgres glossary,
   # edit it, and hand it back.
