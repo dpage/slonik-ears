@@ -113,7 +113,13 @@ apt_update() {
 step "Installing the packages"
 apt_update
 # stdin is closed so that a configuration file prompt fails rather than hangs.
-apt-get install -y slonik-ears-listener slonik-ears-server sherpa-onnx-server </dev/null
+# sherpa-onnx-server is installed separately: named alongside the listener it
+# would satisfy the listener's whisper-server | sherpa-onnx-server dependency,
+# and whisper-server would never be installed.
+apt-get install -y slonik-ears-listener slonik-ears-server </dev/null
+dpkg-query -W whisper-server >/dev/null 2>&1 ||
+  fail "installing the listener did not bring whisper-server"
+apt-get install -y sherpa-onnx-server </dev/null
 
 step "Checking the installed system"
 ears-listener --version
