@@ -61,10 +61,10 @@ captured through the room microphone, in real time with partials on and
 | medium.en | 3.5 s | 4.6 s | A few misheard phrases |
 | large-v3-turbo | 3.8 s | 11.5 s | Invented words over crosstalk |
 
-The package defaults to `large-v3`, preferring the accurate transcript
-to the faster one; change `WHISPER_MODEL` to `medium.en` if the room
-would rather read the words sooner. Turning partials off saves `large-v3`
-about another second.
+The package defaults to `small.en`, which transcribes a 3.3 second
+utterance in under half a second on these machines. Change
+`WHISPER_MODEL` to `medium.en` or `large-v3` if the room would rather
+wait for a more accurate transcript.
 
 Without `--audio-ctx`, `large-v3` takes 4.3 seconds over a 3.3 second
 utterance, because the encoder always pays for thirty seconds (see
