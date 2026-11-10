@@ -79,3 +79,61 @@ func TestNamesAreSorted(t *testing.T) {
 		t.Errorf("Names() is not sorted: %v", names)
 	}
 }
+
+func TestLookupBundleKnownValues(t *testing.T) {
+	b, ok := LookupBundle("parakeet-tdt-0.6b-v2-int8")
+	if !ok {
+		t.Fatal("parakeet-tdt-0.6b-v2-int8 not found")
+	}
+	if len(b.Files) != 4 {
+		t.Fatalf("v2 has %d files, want 4", len(b.Files))
+	}
+	enc := b.Files[0]
+	if want := "92a10bd9c23936ea0566c29f963bc57c2a5df4261b6a8921c39abea66557ca8b"; enc.SHA256 != want {
+		t.Errorf("v2 encoder SHA256 = %s, want %s", enc.SHA256, want)
+	}
+	if enc.Size != 652282309 {
+		t.Errorf("v2 encoder Size = %d, want 652282309", enc.Size)
+	}
+	if enc.Name != "parakeet-tdt-0.6b-v2-int8/encoder.int8.onnx" || enc.File != "encoder.int8.onnx" {
+		t.Errorf("v2 encoder Name/File = %q/%q", enc.Name, enc.File)
+	}
+	v3, ok := LookupBundle("parakeet-tdt-0.6b-v3-int8")
+	if !ok || len(v3.Files) != 4 {
+		t.Fatalf("v3 bundle missing or wrong size: %v %d", ok, len(v3.Files))
+	}
+	if _, ok := LookupBundle("large-v3"); ok {
+		t.Error("a Whisper model name was found as a bundle")
+	}
+}
+
+func TestBundleURLsArePinned(t *testing.T) {
+	for _, name := range BundleNames() {
+		b, _ := LookupBundle(name)
+		for _, f := range b.Files {
+			if strings.Contains(f.URL, "/resolve/main/") {
+				t.Errorf("%s is not pinned to a commit: %s", f.Name, f.URL)
+			}
+			if !strings.Contains(f.URL, "/resolve/84b478d5") && !strings.Contains(f.URL, "/resolve/ed5d7456") {
+				t.Errorf("%s does not use the expected commit: %s", f.Name, f.URL)
+			}
+			if !strings.HasSuffix(f.URL, "/"+f.File) {
+				t.Errorf("%s URL does not end in the file name: %s", f.Name, f.URL)
+			}
+		}
+	}
+}
+
+func TestBundleNamesAreSorted(t *testing.T) {
+	names := BundleNames()
+	if len(names) != 2 || !slices.IsSorted(names) {
+		t.Errorf("BundleNames() = %v, want two sorted names", names)
+	}
+}
+
+func TestLookupUnknownListsBundles(t *testing.T) {
+	_, err := Lookup("no-such-model")
+	if err == nil || !strings.Contains(err.Error(), "parakeet-tdt-0.6b-v2-int8") {
+		t.Errorf("error should list bundle names, got %v", err)
+	}
+}

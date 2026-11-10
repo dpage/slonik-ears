@@ -14,8 +14,9 @@ import (
 
 // Seams for the tests, which point them at a local server.
 var (
-	lookup = models.Lookup
-	vad    = models.VAD
+	lookup       = models.Lookup
+	lookupBundle = models.LookupBundle
+	vad          = models.VAD
 )
 
 // defaultModelDir is where whisper.cpp users conventionally keep models, and
@@ -37,8 +38,18 @@ func stderrIsTerminal() bool {
 // fetchModels downloads the named model into dir. A Whisper model is fetched
 // together with the Silero voice-activity-detection model that the listener's
 // recommended setup uses; a Silero name fetches only itself. Files already in
-// place with the right checksum are left alone.
+// place with the right checksum are left alone. A Parakeet bundle name fetches
+// that bundle's files into dir/<name>/ and nothing else, since the Parakeet
+// listener does not use the Silero model.
 func fetchModels(ctx context.Context, name, dir string, out io.Writer, isTerminal bool, client *http.Client) error {
+	if b, ok := lookupBundle(name); ok {
+		for _, f := range b.Files {
+			if err := fetchOne(ctx, f, filepath.Join(dir, b.Name), out, isTerminal, client); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	m, err := lookup(name)
 	if err != nil {
 		return err

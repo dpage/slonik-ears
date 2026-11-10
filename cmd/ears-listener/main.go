@@ -45,7 +45,7 @@ func run() error {
 		listDevices = flag.Bool("list-devices", false, "list audio capture devices and exit")
 		showVersion = flag.Bool("version", false, "print the version and exit")
 		dryRun      = flag.Bool("dry-run", false, "transcribe to the terminal without connecting to a server")
-		fetchModel  = flag.String("fetch-model", "", "download the named Whisper model (and the Silero voice detection model) and exit; e.g. large-v3")
+		fetchModel  = flag.String("fetch-model", "", "download the named Whisper model (and the Silero voice detection model) or Parakeet model and exit; e.g. large-v3 or parakeet-tdt-0.6b-v2-int8")
 		modelDir    = flag.String("model-dir", "", "directory for --fetch-model (default ~/.cache/whisper)")
 		printVocab  = flag.Bool("print-vocabulary", false, "print the glossary this configuration would use, one term per line, and exit")
 	)
