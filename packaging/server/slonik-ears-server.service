@@ -1,0 +1,17 @@
+[Unit]
+Description=Slonik Ears server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/ears-server --config /etc/slonik-ears/server.yaml
+User=slonik-ears
+Group=slonik-ears
+StateDirectory=slonik-ears
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

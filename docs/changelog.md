@@ -4,6 +4,14 @@ All notable changes to Slonik Ears are recorded here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the
 project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Debian 13 packages for the listener, `whisper-server` (whisper.cpp
+  with Vulkan support) and the relay server, published as a signed apt
+  repository alongside the documentation and attached to each release.
+
 ## [1.0.0] - 2026-09-21
 
 The first release. Everything below is new, so the list describes what

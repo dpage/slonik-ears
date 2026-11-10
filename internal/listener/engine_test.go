@@ -297,6 +297,55 @@ func TestTheQueueDoesNotGrowWithoutLimit(t *testing.T) {
 	}
 }
 
+// blockingTranscriber holds every request until it is cancelled, standing in
+// for a model that takes seconds over each one.
+type blockingTranscriber struct{ started chan struct{} }
+
+func (blockingTranscriber) Name() string { return "blocking" }
+
+func (blockingTranscriber) Close() error { return nil }
+
+func (b blockingTranscriber) Transcribe(ctx context.Context, _ []float32, _ int, _ asr.Options) (asr.Result, error) {
+	close(b.started)
+	<-ctx.Done()
+	return asr.Result{}, ctx.Err()
+}
+
+// TestAFinalDoesNotWaitBehindAPreview covers a slow model. A preview is
+// almost always in flight when the speaker pauses, and the committed
+// utterance used to wait for it to finish: on the room machines that put
+// several seconds of lag on every line of the transcript.
+func TestAFinalDoesNotWaitBehindAPreview(t *testing.T) {
+	b := blockingTranscriber{started: make(chan struct{})}
+	e := &Engine{
+		cfg:  DefaultEngineConfig(),
+		log:  testLogger(),
+		asr:  b,
+		wake: make(chan struct{}, 1),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		e.transcribe(context.Background(), audio.Request{Kind: audio.KindPartial, EndMs: 2000})
+		close(done)
+	}()
+	<-b.started
+	e.enqueue(audio.Request{Kind: audio.KindFinal, EndMs: 2500})
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("the preview was not abandoned when the final arrived")
+	}
+	// Abandoning a preview is not a failure, so the room must not be told
+	// that transcription is broken.
+	e.stateMu.Lock()
+	defer e.stateMu.Unlock()
+	if e.lastErr != "" {
+		t.Errorf("an abandoned preview was reported to the room as %q", e.lastErr)
+	}
+}
+
 // TestASilentCaptureDeviceIsReported covers a microphone that goes away
 // mid-talk. Silence still arrives as frames, so a device that stops calling
 // back at all leaves the listener sitting there looking healthy and

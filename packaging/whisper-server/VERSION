@@ -1,0 +1,6 @@
+# The whisper.cpp release packaged as whisper-server. Sourced by build.sh.
+# Bump the -0slonikN suffix on any packaging change, so one pool filename
+# never refers to two different files.
+WHISPER_CPP_TAG=v1.9.5
+WHISPER_CPP_COMMIT=d1be6fde11ac6e0407606b4e42fe72d34add8037
+DEB_VERSION=1.9.5-0slonik1

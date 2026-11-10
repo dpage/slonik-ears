@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -44,6 +45,8 @@ func run() error {
 		listDevices = flag.Bool("list-devices", false, "list audio capture devices and exit")
 		showVersion = flag.Bool("version", false, "print the version and exit")
 		dryRun      = flag.Bool("dry-run", false, "transcribe to the terminal without connecting to a server")
+		fetchModel  = flag.String("fetch-model", "", "download the named Whisper model (and the Silero voice detection model) and exit; e.g. large-v3")
+		modelDir    = flag.String("model-dir", "", "directory for --fetch-model (default ~/.cache/whisper)")
 		printVocab  = flag.Bool("print-vocabulary", false, "print the glossary this configuration would use, one term per line, and exit")
 	)
 	cfg := listener.DefaultConfig()
@@ -57,6 +60,18 @@ func run() error {
 	}
 	if *listDevices {
 		return printDevices()
+	}
+	if *fetchModel != "" {
+		dir := *modelDir
+		if dir == "" {
+			var err error
+			if dir, err = defaultModelDir(); err != nil {
+				return err
+			}
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return fetchModels(ctx, *fetchModel, dir, os.Stderr, stderrIsTerminal(), http.DefaultClient)
 	}
 
 	if *configPath != "" {
@@ -391,6 +406,9 @@ Environment:
   EARS_SERVER, EARS_ROOM, EARS_PUBLISH_TOKEN, EARS_WHISPER_URL, EARS_API_KEY
 
 Examples:
+  # Download a model (plus the voice detection model) into ~/.cache/whisper:
+  ears-listener --fetch-model large-v3
+
   # Try the whole system with no model and no microphone:
   ears-listener --room demo --mock --dry-run
 

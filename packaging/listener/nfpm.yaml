@@ -1,0 +1,44 @@
+# nfpm config for the listener package. Run from the repository root with
+# VERSION and BINARY set (see .github/workflows/release.yml).
+name: slonik-ears-listener
+arch: amd64
+platform: linux
+version: ${VERSION}
+section: sound
+priority: optional
+maintainer: Dave Page <dpage@pgadmin.org>
+description: |-
+  Slonik Ears room listener
+   Captures room audio, transcribes it with whisper-server and sends the
+   transcript to an ears-server.
+homepage: https://github.com/dpage/slonik-ears
+license: PostgreSQL
+
+depends:
+  - whisper-server
+  - libpulse0
+  - libasound2t64
+
+contents:
+  - src: ${BINARY}
+    dst: /usr/bin/ears-listener
+    expand: true
+    file_info:
+      mode: 0755
+  - src: configs/listener.example.yaml
+    dst: /etc/slonik-ears/listener.yaml
+    type: config|noreplace
+    file_info:
+      mode: 0644
+  - src: packaging/listener/slonik-ears-listener.service
+    dst: /usr/lib/systemd/user/slonik-ears-listener.service
+    file_info:
+      mode: 0644
+  - src: README.md
+    dst: /usr/share/doc/slonik-ears-listener/README.md
+    file_info:
+      mode: 0644
+  - src: LICENSE
+    dst: /usr/share/doc/slonik-ears-listener/LICENSE
+    file_info:
+      mode: 0644

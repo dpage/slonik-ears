@@ -6,6 +6,9 @@
 /ears-server
 /ears-listener
 
+# Generated at package build time from configs/server.example.yaml
+/packaging/server/server.yaml
+
 # Front-end build output (rebuilt by `make web`; the placeholder is kept so
 # that `go build` works in a fresh checkout)
 /web/dist/*
@@ -29,3 +32,8 @@
 
 # The built documentation site.
 /site/
+
+# Claude Code working files: plans, specs and worktrees are never committed.
+/.claude/plans/
+/.claude/specs/
+/.claude/worktrees/

@@ -2,12 +2,14 @@
 
 The model decides both how accurate the transcript is and whether the
 machine can keep up with the speaker. This page gives measured figures
-for two very different machines so you can choose without guessing.
+for three very different machines so you can choose without guessing.
 
 ## Available models
 
-Models are fetched with `make model MODEL=<name>` into
-`~/.cache/whisper`. The following table lists the usual choices and
+Models are fetched with `ears-listener --fetch-model <name>` into
+`~/.cache/whisper` (or the directory given by `--model-dir`); from a
+source checkout, `make model MODEL=<name>` does the same. The
+following table lists the usual choices and
 their sizes:
 
 | Model | Size | Notes |
@@ -43,6 +45,52 @@ The turbo variant is the surprise. It is no faster than the full model
 in practice, and it replaced a quietly spoken sentence with a
 repetition of its own prompt, which is the worst way for a transcript
 to be wrong.
+
+## On the room machines
+
+The room machines are small Ryzen 5 7430U computers with an integrated
+Radeon Vega 7, running the packaged `whisper-server` on Vulkan. What
+matters in the room is the lag: how long after the speaker pauses the
+line reaches the audience. Replaying two minutes of real conversation
+captured through the room microphone, in real time with partials on and
+`--audio-ctx 768`, gave these figures:
+
+| Model | Median lag | Worst lag | Transcript |
+| --- | --- | --- | --- |
+| large-v3 | 7.1 s | 8.2 s | Clean |
+| large-v3-q5_0 | 5.4 s | 6.4 s | Nearly as clean |
+| medium.en | 3.5 s | 4.6 s | A few misheard phrases |
+| medium.en-q5_0 | 2.6 s | 3.2 s | The same as medium.en |
+| small.en | 0.8 s | 1.3 s | More misheard phrases |
+| large-v3-turbo | 3.8 s | 11.5 s | Invented words over crosstalk |
+| large-v3-turbo-q5_0 | 3.6 s | 9.0 s | Repeats its own phrases |
+
+The quantised builds cost nothing visible in the transcript and take
+about a quarter off the lag, because the integrated GPU shares the
+system's memory and the smaller weights are quicker to move. The package
+defaults to `medium.en-q5_0`; change `WHISPER_MODEL` to `small.en` for
+the shortest lag, or to `large-v3-q5_0` if the room would rather wait
+for the most accurate transcript.
+
+Two other settings were tried and rejected. Reducing `--audio-ctx` to
+512, with `--max-utterance-ms 9500` to match, made the worst lag
+three times longer and the transcript worse; `--no-fallback` made no
+difference.
+
+Without `--audio-ctx`, `large-v3` takes 4.3 seconds over a 3.3 second
+utterance, because the encoder always pays for thirty seconds (see
+below).
+
+Vulkan beats the processor on this machine for every model larger than
+`base.en`. Transcribing the same fifty seconds as a single request:
+
+| Model | Vulkan | Processor only |
+| --- | --- | --- |
+| base.en | 34x | 26x |
+| small.en | 12x | 8.3x |
+| medium.en | 4.7x | 2.7x |
+| large-v3-turbo | 5.8x | 2.3x |
+| large-v3 | 2.8x | 1.4x |
 
 ## On a machine without a GPU
 

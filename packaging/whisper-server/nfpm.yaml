@@ -1,0 +1,70 @@
+# nfpm config for the whisper-server package. Run by build.sh from the
+# repository root with STAGE (the staged binary and libraries), SRC (the
+# whisper.cpp checkout) and DEB_VERSION set.
+name: whisper-server
+arch: amd64
+platform: linux
+version: ${DEB_VERSION}
+# DEB_VERSION already carries the Debian revision; without this nfpm would
+# read -0slonik1 as a semver prerelease and turn it into ~0slonik1.
+version_schema: none
+section: sound
+priority: optional
+maintainer: Dave Page <dpage@pgadmin.org>
+description: |-
+  whisper.cpp speech recognition server for Slonik Ears
+   whisper.cpp's whisper-server built with the Vulkan backend and CPU
+   fallback, with its own copies of libwhisper and libggml in
+   /usr/lib/slonik-ears/whisper.
+homepage: https://github.com/dpage/slonik-ears
+license: MIT
+
+# The packages build.sh reports for the libraries ldd finds outside the
+# staged directory.
+depends:
+  - libc6
+  - libgcc-s1
+  - libgomp1
+  - libstdc++6
+  - libvulkan1
+recommends:
+  - mesa-vulkan-drivers
+conflicts:
+  - whisper.cpp-tools
+replaces:
+  - whisper.cpp-tools
+
+contents:
+  - src: ${STAGE}
+    dst: /usr/lib/slonik-ears/whisper
+    expand: true
+  - src: /usr/lib/slonik-ears/whisper/whisper-server
+    dst: /usr/bin/whisper-server
+    type: symlink
+  - src: packaging/whisper-server/check-model.sh
+    dst: /usr/lib/slonik-ears/whisper/check-model
+    file_info:
+      mode: 0755
+  - src: packaging/whisper-server/whisper-server.default
+    dst: /etc/default/whisper-server
+    type: config|noreplace
+    file_info:
+      mode: 0644
+  - src: packaging/whisper-server/whisper-server.service
+    dst: /usr/lib/systemd/system/whisper-server.service
+    file_info:
+      mode: 0644
+  - dst: /var/lib/whisper-server/models
+    type: dir
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+  - src: ${SRC}/LICENSE
+    dst: /usr/share/doc/whisper-server/copyright
+    expand: true
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: packaging/whisper-server/postinstall.sh

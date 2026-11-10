@@ -207,6 +207,20 @@ An inline `vocabulary` list in the configuration file is also accepted.
 Whichever source is used replaces the built-in list rather than adding
 to it.
 
+## Fetching models
+
+The following table describes the options that download a model and
+exit, without reading a configuration file or starting the listener:
+
+| Flag | Config key | Default | Description |
+| --- | --- | --- | --- |
+| --fetch-model | none | none | Model to download, such as large-v3; also fetches the Silero voice detection model, unless the name is itself a Silero model |
+| --model-dir | none | ~/.cache/whisper | Directory that --fetch-model downloads into |
+
+Each download is checked against a pinned size and SHA-256 checksum, and
+a file that is already present and correct is left alone. An unknown
+name prints the list of available models.
+
 ## Output and diagnostics
 
 The following table describes the remaining options:
