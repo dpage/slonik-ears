@@ -59,7 +59,11 @@ type Config struct {
 	// databases.
 	NoVocabulary bool `yaml:"no_vocabulary"`
 
-	// How it gets transcribed.
+	// How it gets transcribed. Backend is "whisper" (the default) or
+	// "parakeet"; with parakeet, Parakeet is the WebSocket endpoint and the
+	// whisper-only settings below are ignored.
+	Backend    string `yaml:"backend"`
+	Parakeet   string `yaml:"parakeet_url"`
 	Whisper    string `yaml:"whisper_url"`
 	Model      string `yaml:"model"`
 	APIKey     string `yaml:"api_key"`
@@ -104,6 +108,8 @@ func DefaultConfig() Config {
 	return Config{
 		Server:            "http://localhost:8080",
 		Language:          "en",
+		Backend:           "whisper",
+		Parakeet:          "ws://127.0.0.1:8082",
 		Whisper:           "http://127.0.0.1:8081/inference",
 		SilenceMs:         ch.SilenceMs,
 		MinUtteranceMs:    ch.MinUtteranceMs,
@@ -136,6 +142,8 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Loop, "loop", c.Loop, "loop the replayed file")
 	fs.BoolVar(&c.Fast, "fast", c.Fast, "replay the file as fast as possible rather than in real time")
 
+	fs.StringVar(&c.Backend, "backend", c.Backend, "transcription backend: whisper or parakeet")
+	fs.StringVar(&c.Parakeet, "parakeet", c.Parakeet, "Parakeet (sherpa-onnx) WebSocket endpoint, with --backend parakeet")
 	fs.StringVar(&c.Whisper, "whisper", c.Whisper, "transcription endpoint (whisper.cpp server, or an OpenAI-compatible URL)")
 	fs.StringVar(&c.Model, "model", c.Model, "model name, for OpenAI-compatible endpoints only")
 	fs.StringVar(&c.APIKey, "api-key", c.APIKey, "bearer token for the transcription endpoint (or set EARS_API_KEY)")
@@ -204,6 +212,8 @@ func (c *Config) LoadFile(path string, fs *flag.FlagSet) error {
 	overlay("file", func() { c.File = cmdline.File })
 	overlay("loop", func() { c.Loop = cmdline.Loop })
 	overlay("fast", func() { c.Fast = cmdline.Fast })
+	overlay("backend", func() { c.Backend = cmdline.Backend })
+	overlay("parakeet", func() { c.Parakeet = cmdline.Parakeet })
 	overlay("whisper", func() { c.Whisper = cmdline.Whisper })
 	overlay("model", func() { c.Model = cmdline.Model })
 	overlay("api-key", func() { c.APIKey = cmdline.APIKey })
@@ -244,6 +254,9 @@ func (c *Config) ApplyEnv() {
 	if v := os.Getenv("EARS_WHISPER_URL"); v != "" && c.Whisper == DefaultConfig().Whisper {
 		c.Whisper = v
 	}
+	if v := os.Getenv("EARS_PARAKEET_URL"); v != "" && c.Parakeet == DefaultConfig().Parakeet {
+		c.Parakeet = v
+	}
 	if v := os.Getenv("EARS_API_KEY"); v != "" && c.APIKey == "" {
 		c.APIKey = v
 	}
@@ -269,8 +282,23 @@ func (c Config) Validate(dryRun bool) error {
 			return fmt.Errorf("a publish token is required: pass --token or set EARS_PUBLISH_TOKEN")
 		}
 	}
-	if !c.Mock && c.Whisper == "" {
-		return fmt.Errorf("--whisper is required unless --mock is used")
+	if c.Backend != "whisper" && c.Backend != "parakeet" {
+		return fmt.Errorf("--backend %q is not usable: choose whisper or parakeet", c.Backend)
+	}
+	if c.Backend == "parakeet" && c.Translate {
+		return fmt.Errorf("Parakeet cannot translate; use backend: whisper")
+	}
+	if !c.Mock {
+		switch c.Backend {
+		case "whisper":
+			if c.Whisper == "" {
+				return fmt.Errorf("--whisper is required unless --mock is used")
+			}
+		case "parakeet":
+			if c.Parakeet == "" {
+				return fmt.Errorf("--parakeet is required with --backend parakeet, unless --mock is used")
+			}
+		}
 	}
 	if c.File != "" && c.Device != "" {
 		return fmt.Errorf("--file and --device are mutually exclusive")

@@ -37,7 +37,15 @@ file: ""
 loop: false
 fast: false
 
-# Transcription backend. This is whisper.cpp's own server:
+# Which transcription backend to use: whisper (the default) or parakeet, which
+# talks to a sherpa-onnx WebSocket server. With parakeet the whisper settings
+# below, and the language and vocabulary, are not sent, and translate must be
+# false.
+# backend: parakeet
+# parakeet_url: "ws://127.0.0.1:8082"
+backend: whisper
+
+# Whisper backend. This is whisper.cpp's own server:
 #   whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081
 whisper_url: "http://127.0.0.1:8081/inference"
 # Only needed for OpenAI-compatible cloud endpoints, which also want an
