@@ -40,7 +40,7 @@ fast: false
 # Which transcription backend to use: whisper (the default) or parakeet, which
 # talks to a sherpa-onnx WebSocket server. With parakeet the whisper settings
 # below, and the language and vocabulary, are not sent, and translate must be
-# false.
+# false; language still labels the room's transcript.
 # backend: parakeet
 # parakeet_url: "ws://127.0.0.1:8082"
 backend: whisper

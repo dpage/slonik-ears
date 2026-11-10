@@ -362,7 +362,7 @@ func newParakeetTranscriber(cfg listener.Config, log *slog.Logger) (asr.Transcri
 	defer cancel()
 	if err := client.Ping(ctx); err != nil {
 		_ = client.Close()
-		return nil, fmt.Errorf("cannot reach the transcription backend at %s: %w\n\nStart it with:\n  sudo systemctl start sherpa-onnx-server\nIf the model is not installed yet, fetch it with:\n  ears-listener --fetch-model parakeet-tdt-0.6b-v2-int8 --model-dir /var/lib/sherpa-onnx-server/models\nor pass --mock to try the rest of the system without a model", cfg.Parakeet, err)
+		return nil, fmt.Errorf("cannot reach the transcription backend at %s: %w\n\nStart it with:\n  sudo systemctl start sherpa-onnx-server\nIf the model is not installed yet, fetch it with:\n  sudo ears-listener --fetch-model parakeet-tdt-0.6b-v2-int8 --model-dir /var/lib/sherpa-onnx-server/models\nor pass --mock to try the rest of the system without a model", cfg.Parakeet, err)
 	}
 	log.Info("transcription backend ready", "backend", client.Name(), "endpoint", cfg.Parakeet)
 	return client, nil

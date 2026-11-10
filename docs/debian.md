@@ -124,6 +124,13 @@ parakeet_url: "ws://127.0.0.1:8082"
 systemctl --user restart slonik-ears-listener
 ```
 
+Once the listener is working with Parakeet, you can stop whisper-server
+so that it does not keep its model in memory or start at boot:
+
+```bash
+sudo systemctl disable --now whisper-server
+```
+
 The sherpa-onnx server listens on every network interface, so the
 service unit restricts it, through systemd's `IPAddressAllow`, to
 connections from the machine itself. Leave the listener pointing at

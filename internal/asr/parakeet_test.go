@@ -264,6 +264,6 @@ func TestParakeetDialHonoursContext(t *testing.T) {
 	ctx, cancel = context.WithCancel(context.Background())
 	cancel()
 	if _, err := c.Transcribe(ctx, []float32{0.1}, 16000, Options{}); !errors.Is(err, context.Canceled) {
-		t.Errorf("cancel: err = %v, want canceled", err)
+		t.Errorf("cancel: err = %v, want cancelled", err)
 	}
 }

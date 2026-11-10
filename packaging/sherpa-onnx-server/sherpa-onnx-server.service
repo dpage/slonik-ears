@@ -5,7 +5,7 @@ After=network.target
 [Service]
 EnvironmentFile=/etc/default/sherpa-onnx-server
 ExecStartPre=/usr/lib/slonik-ears/sherpa-onnx/check-model
-ExecStart=/usr/bin/sherpa-onnx-offline-websocket-server --port=${SHERPA_PORT} --num-work-threads=1 --max-batch-size=1 --num-threads=${SHERPA_THREADS} --max-utterance-length=60 --model-type=nemo_transducer --encoder=${SHERPA_MODEL_DIR}/encoder.int8.onnx --decoder=${SHERPA_MODEL_DIR}/decoder.int8.onnx --joiner=${SHERPA_MODEL_DIR}/joiner.int8.onnx --tokens=${SHERPA_MODEL_DIR}/tokens.txt $SHERPA_ARGS
+ExecStart=/usr/bin/sherpa-onnx-offline-websocket-server --port=${SHERPA_PORT} --num-work-threads=1 --max-batch-size=1 --num-threads=${SHERPA_THREADS} --max-utterance-length=60 --model-type=nemo_transducer --encoder=${SHERPA_MODEL_DIR}/encoder.int8.onnx --decoder=${SHERPA_MODEL_DIR}/decoder.int8.onnx --joiner=${SHERPA_MODEL_DIR}/joiner.int8.onnx --tokens=${SHERPA_MODEL_DIR}/tokens.txt --log-file=/dev/null $SHERPA_ARGS
 DynamicUser=yes
 # The server binds every interface and has no option to choose one, so keep
 # it to loopback here instead.

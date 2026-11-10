@@ -45,7 +45,7 @@ channel: ""
 # Which transcription backend to use: whisper (the default) or parakeet, which
 # talks to a sherpa-onnx WebSocket server. With parakeet the whisper settings
 # below, and the language and vocabulary, are not sent, and translate must be
-# false.
+# false; language still labels the room's transcript.
 # backend: parakeet
 # parakeet_url: "ws://127.0.0.1:8082"
 backend: whisper
@@ -175,9 +175,10 @@ model:
 | --partial-timeout | partial_timeout_sec | 8 | Seconds to wait for a preview transcription |
 
 With `--backend parakeet` the listener ignores `whisper_url`, `model`,
-`api_key`, `whisper_vad`, `language` and the glossary, and sends only
-the audio; the glossary still corrects spelling in the text that comes
-back. The Parakeet backend cannot translate, so combining it with
+`api_key` and `whisper_vad`, and sends only the audio; the glossary
+still corrects spelling in the text that comes back. `language` is not
+sent to the model, but it still labels the room's transcript, so set
+it to the language the `parakeet-tdt-0.6b-v3-int8` model will hear. The Parakeet backend cannot translate, so combining it with
 `--translate` is an error at start-up, and `--parakeet` must not be
 empty unless `--mock` is used.
 
