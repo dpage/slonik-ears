@@ -48,13 +48,13 @@ Fetch a model into the directory `whisper-server` reads from. The
 Choosing a Model page explains which one suits the machine:
 
 ```bash
-sudo ears-listener --fetch-model small.en \
+sudo ears-listener --fetch-model medium.en-q5_0 \
   --model-dir /var/lib/whisper-server/models
 ```
 
-The default in `/etc/default/whisper-server` is `small.en` with
-`--audio-ctx 768`, which keeps the room machines well ahead of the
-speaker; if you fetched a different model, change `WHISPER_MODEL` to
+The default in `/etc/default/whisper-server` is `medium.en-q5_0` with
+`--audio-ctx 768`, which keeps the room machines about three seconds
+behind the speaker; if you fetched a different model, change `WHISPER_MODEL` to
 name it. Then edit `/etc/slonik-ears/listener.yaml`
 for the room name and the address of the relay, and put the publish
 token in a file only you can read:

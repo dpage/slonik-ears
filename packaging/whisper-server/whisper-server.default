@@ -1,14 +1,15 @@
 # Settings for whisper-server.service.
 #
-# small.en on Vulkan keeps the room machines (Ryzen 5 7430U, Radeon Vega 7)
-# well ahead of the speaker once --audio-ctx limits the encoder to the fifteen
-# seconds an utterance can last. large-v3 is more accurate but leaves each line
-# about seven seconds behind; see Choosing a Model in the documentation.
+# medium.en-q5_0 on Vulkan keeps the room machines (Ryzen 5 7430U, Radeon
+# Vega 7) about three seconds behind the speaker once --audio-ctx limits the
+# encoder to the fifteen seconds an utterance can last. small.en is quicker
+# and less accurate, large-v3-q5_0 the reverse; see Choosing a Model in the
+# documentation.
 # Models are not downloaded by the package; fetch them with:
 #
 #   sudo ears-listener --fetch-model <name> --model-dir /var/lib/whisper-server/models
 
-WHISPER_MODEL=/var/lib/whisper-server/models/ggml-small.en.bin
+WHISPER_MODEL=/var/lib/whisper-server/models/ggml-medium.en-q5_0.bin
 WHISPER_VAD_MODEL=/var/lib/whisper-server/models/ggml-silero-v5.1.2.bin
 
 # The listener expects whisper-server on 127.0.0.1:8081 by default.

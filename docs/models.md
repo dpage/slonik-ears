@@ -58,14 +58,24 @@ captured through the room microphone, in real time with partials on and
 | Model | Median lag | Worst lag | Transcript |
 | --- | --- | --- | --- |
 | large-v3 | 7.1 s | 8.2 s | Clean |
+| large-v3-q5_0 | 5.4 s | 6.4 s | Nearly as clean |
 | medium.en | 3.5 s | 4.6 s | A few misheard phrases |
+| medium.en-q5_0 | 2.6 s | 3.2 s | The same as medium.en |
 | small.en | 0.8 s | 1.3 s | More misheard phrases |
 | large-v3-turbo | 3.8 s | 11.5 s | Invented words over crosstalk |
+| large-v3-turbo-q5_0 | 3.6 s | 9.0 s | Repeats its own phrases |
 
-The package defaults to `small.en`, which keeps the lag to about a
-second. Change
-`WHISPER_MODEL` to `medium.en` or `large-v3` if the room would rather
-wait for a more accurate transcript.
+The quantised builds cost nothing visible in the transcript and take
+about a quarter off the lag, because the integrated GPU shares the
+system's memory and the smaller weights are quicker to move. The package
+defaults to `medium.en-q5_0`; change `WHISPER_MODEL` to `small.en` for
+the shortest lag, or to `large-v3-q5_0` if the room would rather wait
+for the most accurate transcript.
+
+Two other settings were tried and rejected. Reducing `--audio-ctx` to
+512, with `--max-utterance-ms 9500` to match, made the worst lag
+three times longer and the transcript worse; `--no-fallback` made no
+difference.
 
 Without `--audio-ctx`, `large-v3` takes 4.3 seconds over a 3.3 second
 utterance, because the encoder always pays for thirty seconds (see
