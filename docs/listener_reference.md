@@ -42,7 +42,15 @@ device: ""
 # together, which is what a genuine stereo microphone wants: "1,2".
 channel: ""
 
-# Transcription backend. This is whisper.cpp's own server:
+# Which transcription backend to use: whisper (the default) or parakeet, which
+# talks to a sherpa-onnx WebSocket server. With parakeet the whisper settings
+# below, and the language and vocabulary, are not sent, and translate must be
+# false.
+# backend: parakeet
+# parakeet_url: "ws://127.0.0.1:8082"
+backend: whisper
+
+# Whisper backend. This is whisper.cpp's own server:
 #   whisper-server --model ~/.cache/whisper/ggml-small.en.bin --port 8081
 whisper_url: "http://127.0.0.1:8081/inference"
 # Only needed for OpenAI-compatible cloud endpoints, which also want an
@@ -155,6 +163,8 @@ model:
 
 | Flag | Config key | Default | Description |
 | --- | --- | --- | --- |
+| --backend | backend | whisper | Transcription backend: whisper or parakeet |
+| --parakeet | parakeet_url | ws://127.0.0.1:8082 | Parakeet (sherpa-onnx) WebSocket endpoint, used when the backend is parakeet |
 | --whisper | whisper_url | http://127.0.0.1:8081/inference | Transcription endpoint |
 | --model | model | none | Model name, for OpenAI compatible endpoints only |
 | --api-key | api_key | none | Bearer token for the transcription endpoint |
@@ -163,6 +173,13 @@ model:
 | --mock | mock | off | Use the mock transcriber, which invents text |
 | --final-timeout | final_timeout_sec | 60 | Seconds to wait for a committed transcription |
 | --partial-timeout | partial_timeout_sec | 8 | Seconds to wait for a preview transcription |
+
+With `--backend parakeet` the listener ignores `whisper_url`, `model`,
+`api_key`, `whisper_vad`, `language` and the glossary, and sends only
+the audio; the glossary still corrects spelling in the text that comes
+back. The Parakeet backend cannot translate, so combining it with
+`--translate` is an error at start-up, and `--parakeet` must not be
+empty unless `--mock` is used.
 
 Enabling `--whisper-vad` requires a voice detection model loaded on the
 model server. Without one, the server rejects the request.
@@ -214,7 +231,7 @@ exit, without reading a configuration file or starting the listener:
 
 | Flag | Config key | Default | Description |
 | --- | --- | --- | --- |
-| --fetch-model | none | none | Model to download, such as large-v3; also fetches the Silero voice detection model, unless the name is itself a Silero model |
+| --fetch-model | none | none | Model to download, such as large-v3; also fetches the Silero voice detection model, unless the name is itself a Silero model. A Parakeet model, such as parakeet-tdt-0.6b-v2-int8, is fetched on its own into a directory of that name |
 | --model-dir | none | ~/.cache/whisper | Directory that --fetch-model downloads into |
 
 Each download is checked against a pinned size and SHA-256 checksum, and
@@ -243,11 +260,12 @@ reads:
 | EARS_ROOM | --room | Room identifier |
 | EARS_PUBLISH_TOKEN | --token | Publish token |
 | EARS_WHISPER_URL | --whisper | Transcription endpoint |
+| EARS_PARAKEET_URL | --parakeet | Parakeet WebSocket endpoint |
 | EARS_API_KEY | --api-key | Bearer token for the transcription endpoint |
 
 An environment variable applies only when the corresponding value is
 still unset, whether that value would have come from the command line
 or from the configuration file. For `EARS_SERVER` and
-`EARS_WHISPER_URL` the test is against the built-in default, so passing
+`EARS_WHISPER_URL` (and likewise `EARS_PARAKEET_URL`) the test is against the built-in default, so passing
 that default explicitly on the command line does not suppress the
 environment variable.

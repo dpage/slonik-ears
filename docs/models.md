@@ -24,6 +24,37 @@ their sizes:
 Dropping the `.en` suffix selects the multilingual variant of a model.
 Builds with a `-q5_0` suffix are quantised and roughly half the size.
 
+## Parakeet
+
+Parakeet is NVIDIA's speech recognition model, converted to run under
+the sherpa-onnx project's server and chosen with `backend: parakeet` in
+the listener configuration (see the Listener Options page). It runs on
+the processor only. There are two models, fetched with
+`ears-listener --fetch-model <name>` into a directory of that name
+under the model directory:
+
+| Model | Languages |
+| --- | --- |
+| parakeet-tdt-0.6b-v2-int8 | English only |
+| parakeet-tdt-0.6b-v3-int8 | 25 European languages |
+
+The models are NVIDIA's, released under CC-BY-4.0.
+
+On the room machines, over the same 81 clips taken from a ten minute
+excerpt of a panel session, the time to transcribe each utterance was:
+
+| Backend | Median | 90th percentile | Worst |
+| --- | --- | --- | --- |
+| whisper medium.en-q5_0 on Vulkan | 2.00 s | 2.43 s | 3.25 s |
+| Parakeet, 6 threads | 0.28 s | 0.61 s | 0.64 s |
+
+Accuracy was comparable, and Parakeet keeps the fillers and repetitions
+that a speaker actually produces. It takes no prompt, so the vocabulary
+cannot help it hear a term; the listener only uses the vocabulary to
+correct the spelling afterwards. Choose Parakeet where the room needs
+the shortest lag and the talk is in a language it supports; stay with
+Whisper for translation or any other language.
+
 ## On a machine with a GPU
 
 Use `large-v3`. Measured on an Apple M2 Max with 30 GPU cores,
