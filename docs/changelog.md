@@ -6,16 +6,34 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-10
+
 ### Added
 
 - Debian 13 packages for the listener, `whisper-server` (whisper.cpp
   with Vulkan support) and the relay server, published as a signed apt
   repository alongside the documentation and attached to each release.
+- `ears-listener --fetch-model`, which downloads a Whisper model and
+  the Silero voice detection model from pinned commits and checks each
+  file's checksum before using it.
 - A Parakeet transcription backend, chosen with `backend: parakeet`,
   which talks to sherpa-onnx's WebSocket server on the processor alone
   and answers several times faster than Whisper on the room machines.
   The `sherpa-onnx-server` Debian package runs that server, and
   `--fetch-model` downloads the Parakeet models.
+
+### Changed
+
+- A committed line no longer waits for a preview that is still being
+  transcribed, which cuts the lag noticeably on slower models.
+
+### Fixed
+
+- Stopping the listener could occasionally drop the last utterance.
+- A sentence finished at the start of a new line no longer shows its
+  full stop as a line of its own.
+- The binaries are built with Go 1.27.3, which fixes vulnerabilities
+  in the standard library's HTTP, HTTP/2 and TLS code.
 
 ## [1.0.0] - 2026-09-21
 

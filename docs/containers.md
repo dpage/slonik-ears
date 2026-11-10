@@ -276,7 +276,7 @@ curl -s http://127.0.0.1:8080/healthz
 ```
 
 ```json
-{"rooms":3,"status":"ok","uptime":"2h14m","version":"1.0.0"}
+{"rooms":3,"status":"ok","uptime":"2h14m","version":"1.1.0"}
 ```
 
 ## Upgrading
