@@ -153,11 +153,8 @@ func (c *ParakeetClient) Transcribe(ctx context.Context, pcm []float32, sampleRa
 	if err := json.Unmarshal(raw, &pr); err != nil {
 		return Result{}, fmt.Errorf("asr: could not parse response: %w", err)
 	}
-	// Parakeet sometimes opens an utterance with a stray full stop, which
-	// CleanTranscript leaves alone because Whisper does not do it.
-	text := strings.TrimLeft(strings.TrimSpace(pr.Text), ". ")
 	return Result{
-		Text:     CleanTranscript(text),
+		Text:     CleanTranscript(pr.Text),
 		Raw:      strings.TrimSpace(pr.Text),
 		Language: pr.Lang,
 		Took:     time.Since(start),
