@@ -265,7 +265,7 @@ reads:
 
 An environment variable applies only when the corresponding value is
 still unset, whether that value would have come from the command line
-or from the configuration file. For `EARS_SERVER` and
-`EARS_WHISPER_URL` (and likewise `EARS_PARAKEET_URL`) the test is against the built-in default, so passing
-that default explicitly on the command line does not suppress the
+or from the configuration file. For `EARS_SERVER`,
+`EARS_WHISPER_URL` and `EARS_PARAKEET_URL` the test is against the
+built-in default, so passing that default explicitly on the command line does not suppress the
 environment variable.

@@ -1,8 +1,8 @@
 # Settings for sherpa-onnx-server.service.
 #
 # parakeet-tdt-0.6b-v2-int8 runs on the processor alone and is English only;
-# parakeet-tdt-0.6b-v3 covers other languages. Models are not downloaded by
-# the package; fetch one with:
+# parakeet-tdt-0.6b-v3-int8 covers other languages. Models are not downloaded
+# by the package; fetch one with:
 #
 #   sudo ears-listener --fetch-model parakeet-tdt-0.6b-v2-int8 --model-dir /var/lib/sherpa-onnx-server/models
 

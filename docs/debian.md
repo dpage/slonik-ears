@@ -107,8 +107,9 @@ sudo ears-listener --fetch-model parakeet-tdt-0.6b-v2-int8 \
 `/etc/default/sherpa-onnx-server` names that model in `SHERPA_MODEL_DIR`
 and sets the port (8082) and `SHERPA_THREADS`; change `SHERPA_MODEL_DIR`
 if you fetched `parakeet-tdt-0.6b-v3-int8` instead. The package does not
-enable the service. Enable it, then set `backend: parakeet` in
-`/etc/slonik-ears/listener.yaml`:
+enable the service. Enable it, change `backend` from `whisper` to
+`parakeet` in `/etc/slonik-ears/listener.yaml`, and restart the
+listener:
 
 ```bash
 sudo systemctl enable --now sherpa-onnx-server
@@ -117,6 +118,10 @@ sudo systemctl enable --now sherpa-onnx-server
 ```yaml
 backend: parakeet
 parakeet_url: "ws://127.0.0.1:8082"
+```
+
+```bash
+systemctl --user restart slonik-ears-listener
 ```
 
 The sherpa-onnx server listens on every network interface, so the
