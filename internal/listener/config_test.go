@@ -68,7 +68,7 @@ func TestValidateBackend(t *testing.T) {
 		wantErr string
 	}{
 		{"unknown backend names both", func(c *Config) { c.Backend = "bogus" }, "whisper or parakeet"},
-		{"parakeet translating", func(c *Config) { c.Backend = "parakeet"; c.Translate = true }, "Parakeet cannot translate; use backend: whisper"},
+		{"parakeet translating", func(c *Config) { c.Backend = "parakeet"; c.Translate = true }, "the parakeet backend cannot translate; use backend: whisper"},
 		{"parakeet without endpoint", func(c *Config) { c.Backend = "parakeet"; c.Parakeet = "" }, "--parakeet"},
 		{"parakeet ignores whisper_url", func(c *Config) { c.Backend = "parakeet"; c.Whisper = "" }, ""},
 		{"whisper needs whisper_url", func(c *Config) { c.Whisper = "" }, "--whisper is required"},

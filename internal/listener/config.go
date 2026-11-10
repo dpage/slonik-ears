@@ -286,7 +286,7 @@ func (c Config) Validate(dryRun bool) error {
 		return fmt.Errorf("--backend %q is not usable: choose whisper or parakeet", c.Backend)
 	}
 	if c.Backend == "parakeet" && c.Translate {
-		return fmt.Errorf("Parakeet cannot translate; use backend: whisper")
+		return fmt.Errorf("the parakeet backend cannot translate; use backend: whisper")
 	}
 	if !c.Mock {
 		switch c.Backend {
