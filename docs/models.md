@@ -59,10 +59,11 @@ captured through the room microphone, in real time with partials on and
 | --- | --- | --- | --- |
 | large-v3 | 7.1 s | 8.2 s | Clean |
 | medium.en | 3.5 s | 4.6 s | A few misheard phrases |
+| small.en | 0.8 s | 1.3 s | More misheard phrases |
 | large-v3-turbo | 3.8 s | 11.5 s | Invented words over crosstalk |
 
-The package defaults to `small.en`, which transcribes a 3.3 second
-utterance in under half a second on these machines. Change
+The package defaults to `small.en`, which keeps the lag to about a
+second. Change
 `WHISPER_MODEL` to `medium.en` or `large-v3` if the room would rather
 wait for a more accurate transcript.
 
