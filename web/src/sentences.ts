@@ -50,7 +50,12 @@ export function toParagraphs(segments: Segment[]): Paragraph[] {
 
     const { complete, rest } = splitSentences(buffer)
     for (const sentence of complete) {
-      out.push({ key: startedKey, startMs: startedAt, text: sentence, incomplete: false })
+      // A segment that opens with the full stop of the one before, as
+      // medium.en's often do, would otherwise leave a paragraph reading ".".
+      // Older listeners still send them, and the server keeps what they sent.
+      if (/[\p{L}\p{N}]/u.test(sentence)) {
+        out.push({ key: startedKey, startMs: startedAt, text: sentence, incomplete: false })
+      }
       // Anything after the first sentence in this batch began here.
       startedAt = seg.startMs
       startedKey = seg.seq

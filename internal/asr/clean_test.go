@@ -27,6 +27,9 @@ func TestCleanTranscriptKeepsSpeech(t *testing.T) {
 		"Thank you for coming, let us begin.":       "Thank you for coming, let us begin.",
 		"So, the thing about replication slots is…": "So, the thing about replication slots is…",
 		"Yes, yes, that is right.":                  "Yes, yes, that is right.",
+		". So how do we get there?":                 "So how do we get there?",
+		"... and then it failed.":                   "and then it failed.",
+		", which is why.":                           "which is why.",
 	}
 	for in, want := range keep {
 		if got := CleanTranscript(in); got != want {
