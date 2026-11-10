@@ -57,6 +57,10 @@ func newFakeSherpa(t *testing.T, reply func(n int, req request, conn *websocket.
 				return // "Done"
 			}
 			if buf == nil {
+				if len(data) < 8 {
+					t.Errorf("first message is %d bytes, want at least the 8-byte header", len(data))
+					return
+				}
 				req.sampleRate = int(int32(binary.LittleEndian.Uint32(data[0:4])))
 				req.byteCount = int(int32(binary.LittleEndian.Uint32(data[4:8])))
 				data = data[8:]
@@ -148,15 +152,9 @@ func TestParakeetRedialsAfterServerClose(t *testing.T) {
 	if _, err := c.Transcribe(context.Background(), []float32{0.1}, 16000, Options{}); err != nil {
 		t.Fatal(err)
 	}
-	// The close frame may or may not have been seen yet; allow one failed
-	// attempt, after which the connection must have been dropped.
-	var res Result
-	var err error
-	for i := 0; i < 2; i++ {
-		if res, err = c.Transcribe(context.Background(), []float32{0.1}, 16000, Options{}); err == nil {
-			break
-		}
-	}
+	// The kept connection is dead by now; the call must redial and resend
+	// rather than lose this utterance.
+	res, err := c.Transcribe(context.Background(), []float32{0.1}, 16000, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,5 +237,33 @@ func TestParakeetLeadingFullStopCleaned(t *testing.T) {
 func TestNewParakeetNeedsEndpoint(t *testing.T) {
 	if _, err := NewParakeet(ParakeetConfig{}); err == nil {
 		t.Error("expected an error for an empty endpoint")
+	}
+}
+
+func TestParakeetDialHonoursContext(t *testing.T) {
+	// A server that accepts the TCP connection but never completes the
+	// WebSocket handshake.
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+	}))
+	defer slow.Close()
+	c, err := NewParakeet(ParakeetConfig{Endpoint: "ws" + strings.TrimPrefix(slow.URL, "http"), Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := c.Transcribe(ctx, []float32{0.1}, 16000, Options{}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("deadline: err = %v, want deadline exceeded", err)
+	}
+
+	ctx, cancel = context.WithCancel(context.Background())
+	cancel()
+	if _, err := c.Transcribe(ctx, []float32{0.1}, 16000, Options{}); !errors.Is(err, context.Canceled) {
+		t.Errorf("cancel: err = %v, want canceled", err)
 	}
 }
