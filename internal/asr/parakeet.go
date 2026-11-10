@@ -156,7 +156,12 @@ func (c *ParakeetClient) dial(ctx context.Context) (*websocket.Conn, error) {
 	}
 	dctx, cancel := context.WithTimeout(ctx, c.cfg.Timeout)
 	defer cancel()
-	conn, _, err := websocket.DefaultDialer.DialContext(dctx, c.cfg.Endpoint, nil)
+	conn, resp, err := websocket.DefaultDialer.DialContext(dctx, c.cfg.Endpoint, nil)
+	if resp != nil {
+		// After a refused handshake this holds the server's reply; after a
+		// successful one it is empty. Neither is read.
+		_ = resp.Body.Close()
+	}
 	if err != nil {
 		// The dialler may report the network's own timeout a moment before
 		// the context notices; callers test for the context's error.
