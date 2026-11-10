@@ -63,6 +63,17 @@ var musicalNote = regexp.MustCompile(`[♪♫♬♩🎵🎶]`)
 // CleanTranscript tidies a raw model output and returns "" for anything that
 // is plainly not speech from the room.
 func CleanTranscript(s string) string {
+	return cleanTranscript(s, true)
+}
+
+// CleanParakeetTranscript is CleanTranscript without the junkOutputs filter.
+// That list is Whisper's hallucinations, and Parakeet does not produce them:
+// when it answers "Thank you." on its own, somebody said it.
+func CleanParakeetTranscript(s string) string {
+	return cleanTranscript(s, false)
+}
+
+func cleanTranscript(s string, dropJunk bool) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
@@ -117,7 +128,7 @@ func CleanTranscript(s string) string {
 		}
 	}
 
-	if junkOutputs[normalise(s)] {
+	if dropJunk && junkOutputs[normalise(s)] {
 		return ""
 	}
 	// A model stuck in a loop is worse than no transcript at all.

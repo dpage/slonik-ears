@@ -141,7 +141,7 @@ func (c *ParakeetClient) Transcribe(ctx context.Context, pcm []float32, sampleRa
 		return Result{}, fmt.Errorf("asr: could not parse response: %w", err)
 	}
 	return Result{
-		Text:     CleanTranscript(pr.Text),
+		Text:     CleanParakeetTranscript(pr.Text),
 		Raw:      strings.TrimSpace(pr.Text),
 		Language: pr.Lang,
 		Took:     time.Since(start),

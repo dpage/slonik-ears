@@ -234,6 +234,21 @@ func TestParakeetLeadingFullStopCleaned(t *testing.T) {
 	}
 }
 
+func TestParakeetKeepsShortUtterances(t *testing.T) {
+	f := newFakeSherpa(t, func(int, request, *websocket.Conn) string {
+		return `{"text":" Thank you."}`
+	})
+	c := newTestParakeet(t, f)
+
+	res, err := c.Transcribe(context.Background(), []float32{0.1}, 16000, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Text != "Thank you." {
+		t.Errorf("Text = %q, want %q", res.Text, "Thank you.")
+	}
+}
+
 func TestNewParakeetNeedsEndpoint(t *testing.T) {
 	if _, err := NewParakeet(ParakeetConfig{}); err == nil {
 		t.Error("expected an error for an empty endpoint")
