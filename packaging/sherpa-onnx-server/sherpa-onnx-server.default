@@ -1,0 +1,20 @@
+# Settings for sherpa-onnx-server.service.
+#
+# parakeet-tdt-0.6b-v2-int8 runs on the processor alone and is English only;
+# parakeet-tdt-0.6b-v3 covers other languages. Models are not downloaded by
+# the package; fetch one with:
+#
+#   sudo ears-listener --fetch-model parakeet-tdt-0.6b-v2-int8 --model-dir /var/lib/sherpa-onnx-server/models
+
+SHERPA_MODEL_DIR=/var/lib/sherpa-onnx-server/models/parakeet-tdt-0.6b-v2-int8
+
+# The listener expects the server on 127.0.0.1:8082 when its backend is
+# parakeet.
+SHERPA_PORT=8082
+
+# Measured on the room machines: 6 threads gave a median of 0.28 s per
+# utterance against 0.29 s for 4, so more cores barely help.
+SHERPA_THREADS=6
+
+# Extra flags for sherpa-onnx-offline-websocket-server.
+SHERPA_ARGS=""

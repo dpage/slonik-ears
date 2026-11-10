@@ -259,9 +259,27 @@ jobs:
           name: package-deb-whisper
           path: dist/*.deb
 
+  deb-sherpa:
+    name: sherpa-onnx-server (Debian package)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: debian:trixie
+    steps:
+      - uses: actions/checkout@v7
+
+      # Repackages sherpa-onnx's prebuilt binary, so there is nothing to
+      # compile; build.sh checks the download against the checksums in VERSION.
+      - name: Build
+        run: packaging/sherpa-onnx-server/build.sh dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-deb-sherpa
+          path: dist/*.deb
+
   deb-test:
     name: Install-test the Debian packages
-    needs: [server, deb-listener, deb-whisper]
+    needs: [server, deb-listener, deb-whisper, deb-sherpa]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container: debian:trixie
@@ -280,7 +298,7 @@ jobs:
 
   publish:
     name: Publish the release
-    needs: [server, listener, deb-listener, deb-whisper, deb-test]
+    needs: [server, listener, deb-listener, deb-whisper, deb-sherpa, deb-test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Only a tag publishes. A manual run stops after building the packages,

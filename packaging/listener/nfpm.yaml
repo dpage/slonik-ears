@@ -9,13 +9,13 @@ priority: optional
 maintainer: Dave Page <dpage@pgadmin.org>
 description: |-
   Slonik Ears room listener
-   Captures room audio, transcribes it with whisper-server and sends the
-   transcript to an ears-server.
+   Captures room audio, transcribes it with whisper-server or
+   sherpa-onnx-server and sends the transcript to an ears-server.
 homepage: https://github.com/dpage/slonik-ears
 license: PostgreSQL
 
 depends:
-  - whisper-server
+  - whisper-server | sherpa-onnx-server
   - libpulse0
   - libasound2t64
 

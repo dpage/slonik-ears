@@ -6,8 +6,8 @@
 #
 #   packaging/test-install.sh <debs-dir>
 #
-# <debs-dir> is searched recursively and must hold the listener, server and
-# whisper-server packages. Needs network access for apt and the model fetch.
+# <debs-dir> is searched recursively and must hold the listener, server,
+# whisper-server and sherpa-onnx-server packages. Needs network access for apt and the model fetch.
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
@@ -58,6 +58,8 @@ whisper_deb="$(find "$work/debs" -name 'whisper-server_*_amd64.deb' | head -n 1)
 [ -n "$whisper_deb" ] || fail "no whisper-server amd64 package under $debs"
 find "$work/debs" -name 'slonik-ears-server_*_amd64.deb' | grep -q . ||
   fail "no slonik-ears-server amd64 package under $debs"
+find "$work/debs" -name 'sherpa-onnx-server_*_amd64.deb' | grep -q . ||
+  fail "no sherpa-onnx-server amd64 package under $debs"
 
 step "Generating a throwaway signing key"
 GNUPGHOME="$work/gnupg"
@@ -111,18 +113,27 @@ apt_update() {
 step "Installing the packages"
 apt_update
 # stdin is closed so that a configuration file prompt fails rather than hangs.
-apt-get install -y slonik-ears-listener slonik-ears-server </dev/null
+apt-get install -y slonik-ears-listener slonik-ears-server sherpa-onnx-server </dev/null
 
 step "Checking the installed system"
 ears-listener --version
 ears-server --version
 whisper-server --help >/dev/null 2>&1 || fail "whisper-server --help failed"
 
+[ -f /usr/lib/systemd/system/sherpa-onnx-server.service ] ||
+  fail "the sherpa-onnx-server unit is missing"
+[ -x /usr/bin/sherpa-onnx-offline-websocket-server ] ||
+  fail "/usr/bin/sherpa-onnx-offline-websocket-server does not resolve to an executable"
+if ldd /usr/bin/sherpa-onnx-offline-websocket-server 2>&1 | grep -q 'not found'; then
+  ldd /usr/bin/sherpa-onnx-offline-websocket-server >&2
+  fail "sherpa-onnx-offline-websocket-server has unresolved libraries"
+fi
+
 [ -f /usr/lib/systemd/user/slonik-ears-listener.service ] ||
   fail "the listener's user unit is missing"
 # systemd is not running in the container, so enabling a unit would show up as
 # a symlink in a .wants directory.
-for unit in slonik-ears-server.service whisper-server.service slonik-ears-listener.service; do
+for unit in slonik-ears-server.service whisper-server.service sherpa-onnx-server.service slonik-ears-listener.service; do
   if compgen -G "/etc/systemd/system/*.wants/$unit" >/dev/null ||
     compgen -G "/etc/systemd/user/*.wants/$unit" >/dev/null; then
     fail "$unit was enabled by the package"
@@ -143,6 +154,17 @@ echo "$check_out"
 [ "$check_status" -eq 1 ] || fail "check-model exited $check_status, expected 1"
 grep -qF 'ears-listener --fetch-model' <<<"$check_out" ||
   fail "check-model did not print the fetch command"
+
+step "Checking sherpa-onnx-server's check-model without a model"
+set +e
+# shellcheck source=/dev/null
+sherpa_out="$(set -a && . /etc/default/sherpa-onnx-server && /usr/lib/slonik-ears/sherpa-onnx/check-model 2>&1)"
+sherpa_status=$?
+set -e
+echo "$sherpa_out"
+[ "$sherpa_status" -eq 1 ] || fail "sherpa-onnx-server check-model exited $sherpa_status, expected 1"
+grep -qF 'ears-listener --fetch-model parakeet-tdt-0.6b-v2-int8' <<<"$sherpa_out" ||
+  fail "sherpa-onnx-server check-model did not print the fetch command"
 
 step "Transcribing testdata/sample.wav with tiny.en"
 models=/var/lib/whisper-server/models
