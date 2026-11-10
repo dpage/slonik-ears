@@ -9,9 +9,10 @@ behind the arrangement.
 
 The system has three processes per room and one shared relay:
 
-- The Whisper model server turns audio into text. It is
-  `whisper-server` from whisper.cpp, or any endpoint that speaks the
-  same HTTP interface.
+- The model server turns audio into text. The model server is either
+  `whisper-server` from whisper.cpp (or any endpoint that speaks the
+  same HTTP interface), or the sherpa-onnx project's
+  `sherpa-onnx-offline-websocket-server` running NVIDIA's Parakeet.
 - The listener, `ears-listener`, captures audio, decides where each
   utterance begins and ends, sends the audio for transcription, and
   publishes the text.
@@ -31,17 +32,17 @@ rest:
  ┌──────────────────┐         ┌──────────────────┐         ┌────────────────┐
  │ ears-listener    │         │ ears-server      │         │ phone, laptop  │
  │  mic ─▶ VAD ─▶   │  text   │  rooms, history  │  text   │ stage screen   │
- │  whisper.cpp ────┼────────▶│  fan-out, web    ├────────▶│ /r/main-hall   │
+ │  speech model ───┼────────▶│  fan-out, web    ├────────▶│ /r/main-hall   │
  └──────────────────┘   WSS   └──────────────────┘   WSS   └────────────────┘
    Room B ──────────────────────────▲
    Room C ──────────────────────────┘
 ```
 
-The listener talks to the model server over HTTP on the loopback
-interface, so the audio never reaches a network cable. The listener
-talks to the relay over a WebSocket carrying only finished text and
-short status messages. Viewers receive that same text over a second
-WebSocket.
+The listener talks to the model server on the loopback interface, over
+HTTP for Whisper and over a WebSocket for Parakeet, so the audio never
+reaches a network cable. The listener talks to the relay over a
+WebSocket carrying only finished text and short status messages. Viewers
+receive that same text over a second WebSocket.
 
 ## Why the audio stays put
 
@@ -58,9 +59,9 @@ both latency and a new way for the transcript to fail.
 
 ## How an utterance is built
 
-The listener does not send a continuous stream to the model. Whisper
-works on chunks, so the listener has to decide where one utterance ends
-and the next begins:
+The listener does not send a continuous stream to the model. Both models
+work on whole chunks of audio, so the listener has to decide where one
+utterance ends and the next begins:
 
 1. Audio arrives from the capture device in 20 millisecond frames at
     16 kHz, mono.

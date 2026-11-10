@@ -178,7 +178,8 @@ With `--backend parakeet` the listener ignores `whisper_url`, `model`,
 `api_key` and `whisper_vad`, and sends only the audio; the glossary
 still corrects spelling in the text that comes back. `language` is not
 sent to the model, but it still labels the room's transcript, so set
-it to the language the `parakeet-tdt-0.6b-v3-int8` model will hear. The Parakeet backend cannot translate, so combining it with
+it to the language the `parakeet-tdt-0.6b-v3-int8` model will hear.
+The Parakeet backend cannot translate, so combining it with
 `--translate` is an error at start-up, and `--parakeet` must not be
 empty unless `--mock` is used.
 

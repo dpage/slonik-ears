@@ -19,18 +19,23 @@ attribution, so a panel discussion reads as one continuous transcript.
 
 ## What languages does it support?
 
-The model decides. English-only models carry an `.en` suffix and are
-faster; the multilingual models handle many languages and are selected
+The model decides. English-only Whisper models carry an `.en` suffix
+and are faster; the multilingual models handle many languages and are selected
 with `--language`, or with `auto` to let the model decide.
 
-A model can also translate into English rather than transcribing
+A Whisper model can also translate into English rather than transcribing
 verbatim, using `--translate`.
+
+The Parakeet backend has two models: one for English, and one covering
+25 European languages. Parakeet cannot translate.
 
 ## Can it run without a GPU?
 
 Yes, within limits. A Raspberry Pi 4 manages the smallest model at
 roughly 1.4 times real time with the right settings, which works but
-leaves nothing in hand. The Choosing a Model document gives measured
+leaves nothing in hand. The Parakeet backend needs no GPU at all; on a
+small Ryzen room machine it transcribes faster than Whisper does on that
+machine's integrated GPU. The Choosing a Model document gives measured
 figures.
 
 ## How much bandwidth does a viewer use?

@@ -5,9 +5,9 @@
 [![Docs](https://github.com/dpage/slonik-ears/actions/workflows/site.yml/badge.svg)](https://dpage.github.io/slonik-ears/)
 
 Live transcription for events. A listener sits in each room, hears the talk,
-has it transcribed by a Whisper model, and streams the text to a server that
-fans it out to anybody watching — on their own phone, or on a screen beside
-the stage.
+has it transcribed by a Whisper or Parakeet model, and streams the text to a
+server that fans it out to anybody watching — on their own phone, or on a
+screen beside the stage.
 
 It is built for the conference case: several rooms at once, an audience on a
 venue network that blocks devices from talking to each other, and nobody with
@@ -24,7 +24,7 @@ Only text crosses the network. Audio never leaves the room.
  ┌──────────────────┐         ┌──────────────────┐         ┌────────────────┐
  │ ears-listener    │         │ ears-server      │         │ phone, laptop  │
  │  mic ─▶ VAD ─▶   │  text   │  rooms, history  │  text   │ stage screen   │
- │  whisper.cpp ────┼────────▶│  fan-out, web    ├────────▶│ /r/main-hall   │
+ │  speech model ───┼────────▶│  fan-out, web    ├────────▶│ /r/main-hall   │
  └──────────────────┘   WSS   └──────────────────┘   WSS   └────────────────┘
    Room B ──────────────────────────▲
    Room C ──────────────────────────┘        Run the server on the same laptop
@@ -83,8 +83,8 @@ every viewer a clean page, which is covered in
 
 ## Running it for real
 
-The short version is three processes: a Whisper model server, the relay, and
-one listener per room. On a Mac:
+The short version is three processes: a model server, the relay, and one
+listener per room. On a Mac, with Whisper:
 
 ```bash
 brew install go node whisper-cpp
@@ -95,6 +95,9 @@ make build
 `make model MODEL=large-v3` does the same from a checkout.
 
 Then start `whisper-server`, `ears-server` and `ears-listener`, in that order.
+The listener can instead use NVIDIA's Parakeet through sherpa-onnx (packaged
+for Debian as `sherpa-onnx-server`), which keeps the transcript well under a second behind the speaker on a
+processor alone; [Choosing a Model](docs/models.md#parakeet) compares the two.
 For the relay on a cloud instance there is a published container image,
 `ghcr.io/dpage/slonik-ears`, covered in
 [Running in a Container](docs/containers.md).

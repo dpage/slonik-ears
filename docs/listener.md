@@ -63,6 +63,31 @@ JSON objects, one per line. That file is the insurance against the
 network: if the server is unreachable, the listener keeps transcribing
 and buffers the text, and nothing said so far is lost.
 
+## Using Parakeet
+
+The listener uses Whisper by default. Setting the backend to `parakeet`
+sends the audio to the sherpa-onnx project's WebSocket server instead,
+which runs NVIDIA's Parakeet model on the processor alone:
+
+```bash
+ears-listener --room main-hall --backend parakeet \
+  --parakeet ws://127.0.0.1:8082
+```
+
+The same choice in the configuration file uses two keys:
+
+```yaml
+backend: parakeet
+parakeet_url: "ws://127.0.0.1:8082"
+```
+
+On Debian, the `sherpa-onnx-server` package runs the server as a systemd
+service; the Installing on Debian document covers fetching its model and
+starting it. Parakeet keeps the transcript well under a second behind
+the speaker on a small room machine, but it cannot translate and covers
+fewer languages than Whisper. The Choosing a Model document compares
+the two backends.
+
 ## Using a remote or cloud model
 
 The listener talks to whatever transcription endpoint it is given. The
@@ -108,6 +133,10 @@ Order matters, because the model accepts only a few hundred characters
 of prompt. The prompt is filled from the top of the list downwards, and
 terms below that cut are still corrected in the transcript but do not
 help the model hear them. The listener reports the split at startup.
+
+Parakeet accepts no prompt, so under the Parakeet backend the glossary
+only corrects the spelling of terms in the transcript; it cannot help
+the model hear them.
 
 ## Stopping cleanly
 

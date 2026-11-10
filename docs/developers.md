@@ -201,17 +201,38 @@ a new unit file or default setting, bumps the number to `-0slonik2` and
 so on, because the apt pool must never hold two different files under
 one name.
 
+### Updating sherpa-onnx
+
+The packaged sherpa-onnx is pinned in
+`packaging/sherpa-onnx-server/VERSION`. The package repackages the
+upstream release's static Linux x64 binary rather than building from
+source. To move to a new release, set `SHERPA_ONNX_VERSION`,
+`SHERPA_ONNX_TARBALL` and `SHERPA_ONNX_SHA256` from the release's
+assets, set `SHERPA_ONNX_COMMIT` to the commit the release tag points
+at, and update `SHERPA_ONNX_LICENSE_SHA256` if the licence changed.
+Reset `DEB_VERSION` to `<new version>-0slonik1`; the suffix follows the
+same rules as the whisper.cpp package.
+
 ### Refreshing the model checksums
 
 The model catalogue in `internal/models/catalogue.go` pins two Hugging
-Face commits, and each file's checksum and size come from the tree API
-at those commits. To move to newer models, take the new commit hashes
-from the model pages, update the commits named in the comment at the top
-of the table, and regenerate the entries from:
+Face commits for the Whisper and Silero models, and each file's checksum
+and size come from the tree API at those commits. To move to newer
+models, take the new commit hashes from the model pages, update the
+commits named in the comment at the top of the table, and regenerate the
+entries from:
 
 ```bash
 curl -s https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/<commit>
 curl -s https://huggingface.co/api/models/ggml-org/whisper-vad/tree/<commit>
+```
+
+The two Parakeet bundles pin their own commits, in the URLs passed to
+`parakeetBundle`, and their files come from the same API:
+
+```bash
+curl -s https://huggingface.co/api/models/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/tree/<commit>
+curl -s https://huggingface.co/api/models/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/tree/<commit>
 ```
 
 Each entry's `lfs.oid` is its SHA-256 and `lfs.size` its size. Never use

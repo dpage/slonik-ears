@@ -2,8 +2,8 @@
 
 Slonik Ears provides live transcription for events with several rooms
 running at once. A listener sits in each room, hears the talk, has the
-audio transcribed by a Whisper model, and streams the resulting text to
-a server that shares it with anybody watching.
+audio transcribed by a Whisper or Parakeet model, and streams the
+resulting text to a server that shares it with anybody watching.
 
 Attendees read the transcript on their own phones, and a stage display
 shows the same text in large type beside the speaker. Only the text
@@ -27,7 +27,8 @@ one shared service:
 
 - a machine in the room to capture the audio and transcribe it.
 - a microphone, ideally fed from the sound desk rather than a laptop.
-- a Whisper model server, which normally runs on that same machine.
+- a model server, either Whisper or Parakeet, which normally runs on
+  that same machine.
 - a relay server, shared by every room, that the audience can reach.
 
 The relay can run on the same laptop as a single room. A venue network

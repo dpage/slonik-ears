@@ -6,7 +6,7 @@ cloud instance. This page covers pulling the image, running it, giving
 it its configuration and its storage, and upgrading it later.
 
 Only the server is containerised. The listener needs a microphone and a
-Whisper backend on the same machine as the speaker, so it is installed
+model server on the same machine as the speaker, so it is installed
 directly on the machine in the room; the Installing document covers
 that.
 
