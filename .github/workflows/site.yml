@@ -57,6 +57,12 @@ jobs:
       - name: Build
         run: mkdocs build --strict
 
+      # The runner image has apt but not apt-ftparchive, which build-repo.sh
+      # uses to write the indexes.
+      - name: Install the apt tooling
+        if: github.event_name != 'pull_request'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils
+
       # The repository holds every stable release, newest first, so that
       # where two releases carry a file of the same name (whisper-server does)
       # the newest copy is the one that is kept. Pull requests skip this: they
