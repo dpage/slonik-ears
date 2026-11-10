@@ -101,6 +101,13 @@ test('empty and whitespace-only segments are ignored', () => {
   assert.deepEqual(texts([]), [])
 })
 
+test("a segment opening with the last one's full stop adds no empty paragraph", () => {
+  assert.deepEqual(
+    texts([seg(1, 'Welcome to the talk.'), seg(2, '. So how do we get there?')]),
+    ['Welcome to the talk.', 'So how do we get there?'],
+  )
+})
+
 test('keys are unique even when one segment holds several sentences', () => {
   const paragraphs = toParagraphs([seg(1, 'One. Two. Three.')])
   const keys = paragraphs.map((p) => p.key)

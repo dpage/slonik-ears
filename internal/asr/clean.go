@@ -72,6 +72,11 @@ func CleanTranscript(s string) string {
 	// spaces so the transcript flows as prose.
 	s = strings.Join(strings.Fields(s), " ")
 
+	// medium.en often opens a line by finishing the previous one's sentence:
+	// ". So how do we get there?". The viewer ends a sentence at a full stop
+	// followed by a space, so that full stop went up as a paragraph of its own.
+	s = strings.TrimLeft(s, ".,;:!?… ")
+
 	// Strip whole-string non-speech annotations, including repeats such as
 	// "[BLANK_AUDIO] [BLANK_AUDIO]".
 	fields := strings.Fields(s)
