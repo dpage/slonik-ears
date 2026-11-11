@@ -145,6 +145,7 @@ the defaults live in each role's `defaults/main.yml`:
 | `ears_domain` | All | Empty | A domain name for the server; setting it adds Caddy and HTTPS. |
 | `ears_acme_email` | All | Empty | The address Let's Encrypt writes to about the certificate. |
 | `ears_server_url` | All | Derived | The address listeners and attendees use; override it when the rooms reach the server by another name. |
+| `ears_credentials_dir` | All | `credentials/` beside the inventory | Where the generated tokens are kept on the machine running Ansible. |
 | `ears_apt_url` | All | The project's repository | The Slonik Ears apt repository, for a mirror of your own. |
 
 Without `ears_domain`, the server answers plain HTTP on port 8080 and
@@ -191,7 +192,61 @@ add `--limit room-a` to work on a single room machine. Drop
 The first run on a room machine downloads about 660 MB of Parakeet
 model, and installs GNOME if the machine has no desktop yet, so expect
 it to take a while. The machine reboots at the end of that first run
-and comes back logged in as `ears` with the listener running.
+and comes back logged in as `ears` with the listener running. Later runs
+change only what the inventory changes, restart only the services those
+changes affect, and reboot only when the kernel, login or power settings
+change.
+
+### Checking the Result
+
+The server's room list shows each room and whether its listener is
+connected. The following command fetches the list from the server:
+
+```bash
+curl -s http://192.0.2.10:8080/api/rooms
+```
+
+On a room machine, the following command shows the listener's recent
+log:
+
+```bash
+sudo journalctl _UID=$(id -u ears) --since -10min -o cat
+```
+
+A good start logs `transcription backend ready` and
+`connected to server`. A warning that every input channel was near silent means a
+quiet room or too little gain on the audio interface.
+
+### Machines Set Up by Hand
+
+The playbooks can take over machines installed by hand, but they
+replace the existing configuration files rather than merging with them.
+On the first run they generate a new publish token, so the server and
+every listener in the inventory change to it together; a listener
+outside the inventory keeps the old token and can no longer publish.
+
+### Changing the Rooms
+
+Changing a room's `ears_room` or removing a listener from the inventory
+updates the server's configuration, but the server keeps any room that
+already has a saved transcript. Remove such a room from the organiser's
+page, which the Managing Rooms document describes.
+
+## What the Playbooks Leave to You
+
+A few things depend on the venue or the hardware, so the playbooks leave
+them alone:
+
+- The playbooks do not configure networking. A room machine on Wi-Fi
+  needs a connection saved system-wide with NetworkManager, such as one
+  made with `sudo nmcli device wifi connect <SSID> --ask`, so that it
+  connects at boot before anybody logs in.
+- An MT7902 machine has no Wi-Fi until the backports kernel is running,
+  so its first run needs wired Ethernet.
+- The playbooks do not open the stage display; open the room's stage
+  page in a full-screen browser on the room machine's desktop.
+- The audio interface's gain is a physical control; set it using the
+  input level the listener logs at startup.
 
 ## Upgrading
 
@@ -207,8 +262,15 @@ page describes, or with an ad hoc command:
 ansible -i inventory/myevent/hosts.yml all -b -m apt -a "upgrade=safe update_cache=true"
 ```
 
-Then restart the services; a playbook run restarts a service only when
-its settings change, not after an upgrade.
+Then restart the services, because a playbook run restarts a service
+only when its settings change, not after an upgrade. The following
+commands restart the server, then the transcription server and listener
+on every room machine:
+
+```bash
+ansible -i inventory/myevent/hosts.yml ears_server -b -m systemd -a "name=slonik-ears-server state=restarted"
+ansible -i inventory/myevent/hosts.yml ears_listeners -b -m shell -a "systemctl try-restart sherpa-onnx-server whisper-server && systemctl --user -M ears@ daemon-reload && systemctl --user -M ears@ restart slonik-ears-listener"
+```
 
 ## Next Steps
 

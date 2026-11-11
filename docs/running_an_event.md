@@ -56,6 +56,8 @@ before the keynote:
 1. Install the binaries, the model server and a model on each room's
     machine, and run the listener once. The microphone permission prompt
     on macOS is the classic way to lose the first ten minutes of a talk.
+    On Debian, the Deploying with Ansible document describes playbooks
+    that do this for every room at once.
 2. Test with `--dry-run`, standing where the speaker will stand, with
     the room empty and again with somebody talking at the back.
 3. Check the input level reported at startup, and adjust the gain on
