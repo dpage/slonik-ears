@@ -4,6 +4,26 @@ This page is a checklist rather than a reference: what to decide in
 advance, what to do on the day, and what to hand over afterwards. It
 assumes the software is already installed and working.
 
+## When booking the venue
+
+Venues need notice for equipment, so ask early. For each captioned
+room, the venue should provide:
+
+- a large screen beside the stage for the stage display.
+- an HDMI cable from the screen to the room's machine, which usually
+  sits by the sound desk; ordinary HDMI becomes unreliable beyond about
+  10 to 15 metres.
+- a mono, line-level, balanced feed from the mixer; either channel of a
+  mono mix will do.
+- an XLR cable from the mixer to the room's audio interface, with the
+  connector at your end matching the interface's input (usually male
+  into a female input).
+- two power outlets by the sound desk, for the machine and the audio
+  interface.
+
+Bring the room machines and audio interfaces yourself, along with plug
+adaptors if the venue uses a different socket type.
+
 ## A week before
 
 Several decisions are much cheaper to make early than on the morning:
