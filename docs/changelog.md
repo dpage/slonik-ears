@@ -6,6 +6,13 @@ project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Ansible playbooks in `ansible/` that build the relay server and every
+  room machine from fresh Debian 13 installs, generating the tokens,
+  setting up unattended room desktops and, given a domain name, putting
+  Caddy with a Let's Encrypt certificate in front of the server.
+
 ## [1.1.0] - 2026-11-10
 
 ### Added

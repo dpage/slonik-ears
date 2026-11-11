@@ -1,0 +1,4 @@
+- name: Restart the server
+  ansible.builtin.systemd_service:
+    name: slonik-ears-server
+    state: restarted

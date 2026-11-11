@@ -1,0 +1,6 @@
+# Generated tokens, one directory per inventory. Never commit these.
+credentials/
+
+# Real inventories name real machines; only the example belongs in git.
+/inventory/*
+!/inventory/example/

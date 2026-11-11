@@ -1,0 +1,8 @@
+- name: Set up the relay server
+  hosts: ears_server
+  roles:
+    - ears_common
+    - apt_repo
+    - server
+    - role: caddy
+      when: ears_domain | length > 0

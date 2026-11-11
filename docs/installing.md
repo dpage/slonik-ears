@@ -93,7 +93,8 @@ access on macOS belongs to a logged-in session and a daemon has none.
 On Debian 13, the listener, `whisper-server`, `sherpa-onnx-server` (for
 Parakeet) and the relay are available as packages from a signed apt
 repository, with systemd units already written. The Installing on Debian
-document covers it.
+document covers it, and the Deploying with Ansible document describes
+playbooks that set up a whole event from fresh installs.
 
 A container image of the server is published to the GitHub container
 registry, and is usually the easiest way to run the relay on a cloud

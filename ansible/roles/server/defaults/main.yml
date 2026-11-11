@@ -1,0 +1,16 @@
+ears_event_name: Example Conference
+ears_event_tagline: ""
+ears_event_notice: >-
+  Automatically generated live transcript. It will contain errors, especially
+  with names and technical terms. Please do not quote it verbatim.
+
+# Empty for an open event; set it for an internal or paid one.
+ears_viewer_passcode: ""
+# Whether a listener may create a room the server was not told about.
+ears_allow_auto_rooms: true
+ears_history: 2000
+
+# Every listener's room is declared on the server automatically, so that it
+# appears in the lobby before its listener connects. Add rooms with no
+# listener of their own here, as mappings with id, title, track and language.
+ears_extra_rooms: []

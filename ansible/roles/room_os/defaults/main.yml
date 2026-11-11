@@ -1,0 +1,8 @@
+# The backports kernel and firmware-mediatek, for machines whose Wi-Fi is a
+# MediaTek MT7902, which trixie's own kernel does not drive.
+ears_mt7902_wifi: false
+
+# Reboot when something only a reboot applies has changed: the kernel, or the
+# login and power settings. Turn it off to reboot by hand, for instance when
+# a room is in use.
+ears_reboot: true

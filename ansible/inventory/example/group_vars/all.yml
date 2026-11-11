@@ -1,0 +1,10 @@
+# The account Ansible logs in as; it needs sudo on every machine.
+ansible_user: admin
+
+ears_event_name: Example Conference
+ears_event_tagline: Live transcripts for every track
+
+# Uncomment to serve the transcript over HTTPS through Caddy. The name must
+# already resolve to the relay server, with ports 80 and 443 open.
+# ears_domain: ears.example.org
+# ears_acme_email: organisers@example.org

@@ -1,0 +1,7 @@
+- name: Set up the room listeners
+  hosts: ears_listeners
+  roles:
+    - ears_common
+    - room_os
+    - apt_repo
+    - listener

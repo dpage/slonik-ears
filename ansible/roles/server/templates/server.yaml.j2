@@ -1,0 +1,45 @@
+# {{ ansible_managed }}
+#
+# Every setting is described on the Server Options page of the documentation.
+
+event:
+  name: {{ ears_event_name | to_json }}
+  tagline: {{ ears_event_tagline | to_json }}
+  notice: {{ ears_event_notice | to_json }}
+
+server:
+{% if ears_domain %}
+  # Caddy terminates TLS for {{ ears_domain }} and forwards to this address.
+  addr: "127.0.0.1:8080"
+  trust_proxy: true
+{% else %}
+  addr: ":8080"
+  trust_proxy: false
+{% endif %}
+  base_url: {{ ears_server_url | to_json }}
+  data_dir: "/var/lib/slonik-ears"
+  history: {{ ears_history | int }}
+
+auth:
+  publish_token: {{ ears_publish_token | to_json }}
+  viewer_passcode: {{ ears_viewer_passcode | to_json }}
+  admin_token: {{ ears_admin_token | to_json }}
+  allow_auto_rooms: {{ ears_allow_auto_rooms | bool | to_json }}
+
+rooms:
+{% for host in groups['ears_listeners'] | default([]) %}
+{%   set h = hostvars[host] %}
+  - id: {{ h['ears_room'] | to_json }}
+    title: {{ h['ears_room_title'] | default(h['ears_room']) | to_json }}
+    track: {{ h['ears_track'] | default('') | to_json }}
+    language: {{ h['ears_language'] | default('en') | to_json }}
+{% endfor %}
+{% for room in ears_extra_rooms %}
+  - id: {{ room['id'] | to_json }}
+    title: {{ room['title'] | default(room['id']) | to_json }}
+    track: {{ room['track'] | default('') | to_json }}
+    language: {{ room['language'] | default('en') | to_json }}
+{% endfor %}
+{% if not (groups['ears_listeners'] | default([])) and not ears_extra_rooms %}
+  []
+{% endif %}

@@ -1,0 +1,31 @@
+- name: Check that this is Debian 13
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == 'Debian'
+      - ansible_facts['distribution_major_version'] == '13'
+    fail_msg: The server packages are built for Debian 13 (trixie).
+    quiet: true
+
+- name: Install the server
+  ansible.builtin.apt:
+    name: slonik-ears-server
+    state: present
+  notify: Restart the server
+
+# The file holds the tokens, which is why it is readable only by root and the
+# service account, and why its changes are kept out of the diff output.
+- name: Write the server configuration
+  ansible.builtin.template:
+    src: server.yaml.j2
+    dest: /etc/slonik-ears/server.yaml
+    owner: root
+    group: slonik-ears
+    mode: "0640"
+  diff: false
+  notify: Restart the server
+
+- name: Start the server
+  ansible.builtin.systemd_service:
+    name: slonik-ears-server
+    enabled: true
+    state: started

@@ -1,0 +1,6 @@
+# The server comes first so that it is ready when the listeners connect.
+- name: Set up the relay server
+  ansible.builtin.import_playbook: server.yml
+
+- name: Set up the room listeners
+  ansible.builtin.import_playbook: listeners.yml

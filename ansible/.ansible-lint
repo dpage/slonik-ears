@@ -1,0 +1,4 @@
+# Every variable carries the ears_ prefix instead of its role's name, since
+# the server and listener roles share most of them through the inventory.
+skip_list:
+  - var-naming[no-role-prefix]

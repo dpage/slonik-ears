@@ -1,0 +1,132 @@
+- name: Check the listener settings
+  ansible.builtin.assert:
+    that:
+      - ears_room is defined
+      - ears_room is match('^[a-z0-9][a-z0-9_-]{0,63}$')
+      - ears_backend in ['parakeet', 'whisper']
+    fail_msg: >-
+      Set ears_room for {{ inventory_hostname }} to lowercase letters, digits,
+      hyphens and underscores, and ears_backend to parakeet or whisper.
+    quiet: true
+
+# The listener depends on whisper-server or sherpa-onnx-server; naming the
+# backend in the same transaction stops apt picking whisper-server for us.
+- name: Install the listener and its transcription server
+  ansible.builtin.apt:
+    name:
+      - "{{ 'sherpa-onnx-server' if ears_backend == 'parakeet' else 'whisper-server' }}"
+      - slonik-ears-listener
+    state: present
+  notify: Restart the listener
+
+- name: Fetch the Parakeet model
+  ansible.builtin.command:
+    argv:
+      - ears-listener
+      - --fetch-model
+      - "{{ ears_parakeet_model }}"
+      - --model-dir
+      - /var/lib/sherpa-onnx-server/models
+  register: ears_fetch
+  changed_when: "'saved:' in ears_fetch.stderr"
+  when: ears_backend == 'parakeet'
+
+- name: Configure sherpa-onnx-server
+  ansible.builtin.lineinfile:
+    path: /etc/default/sherpa-onnx-server
+    regexp: '^{{ item.key }}='
+    line: "{{ item.key }}={{ item.value }}"
+  loop:
+    - { key: SHERPA_MODEL_DIR, value: "/var/lib/sherpa-onnx-server/models/{{ ears_parakeet_model }}" }
+    - { key: SHERPA_THREADS, value: "{{ ears_sherpa_threads }}" }
+  when: ears_backend == 'parakeet'
+  notify: Restart sherpa-onnx-server
+
+- name: Fetch the Whisper model
+  ansible.builtin.command:
+    argv:
+      - ears-listener
+      - --fetch-model
+      - "{{ ears_whisper_model }}"
+      - --model-dir
+      - /var/lib/whisper-server/models
+  register: ears_fetch
+  changed_when: "'saved:' in ears_fetch.stderr"
+  when: ears_backend == 'whisper'
+
+- name: Configure whisper-server
+  ansible.builtin.lineinfile:
+    path: /etc/default/whisper-server
+    regexp: '^WHISPER_MODEL='
+    line: "WHISPER_MODEL=/var/lib/whisper-server/models/ggml-{{ ears_whisper_model }}.bin"
+  when: ears_backend == 'whisper'
+  notify: Restart whisper-server
+
+- name: Find the installed transcription servers
+  ansible.builtin.service_facts:
+
+# Whichever server is not in use is stopped, so that a machine moved from one
+# backend to the other does not keep the old model in memory.
+- name: Run only the chosen transcription server
+  ansible.builtin.systemd_service:
+    name: "{{ item.name }}"
+    enabled: "{{ item.wanted }}"
+    state: "{{ 'started' if item.wanted else 'stopped' }}"
+  loop:
+    - { name: sherpa-onnx-server, wanted: "{{ ears_backend == 'parakeet' }}" }
+    - { name: whisper-server, wanted: "{{ ears_backend == 'whisper' }}" }
+  when: (item.name ~ '.service') in ansible_facts['services']
+
+- name: Write the listener configuration
+  ansible.builtin.template:
+    src: listener.yaml.j2
+    dest: /etc/slonik-ears/listener.yaml
+    mode: "0644"
+  notify: Restart the listener
+
+- name: Look up the room account
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ ears_user }}"
+
+- name: Note the room account's home directory
+  ansible.builtin.set_fact:
+    ears_home: "{{ ansible_facts['getent_passwd'][ears_user][4] }}"
+
+- name: Create the room account's configuration directories
+  ansible.builtin.file:
+    path: "{{ ears_home }}/{{ item }}"
+    state: directory
+    owner: "{{ ears_user }}"
+    group: "{{ ears_user }}"
+    mode: "0700"
+  loop:
+    - .config
+    - .config/slonik-ears
+    - .config/systemd
+    - .config/systemd/user
+    - .config/systemd/user/default.target.wants
+
+- name: Give the listener the publish token
+  ansible.builtin.copy:
+    dest: "{{ ears_home }}/.config/slonik-ears/listener.env"
+    owner: "{{ ears_user }}"
+    group: "{{ ears_user }}"
+    mode: "0600"
+    content: |
+      EARS_PUBLISH_TOKEN={{ ears_publish_token }}
+  no_log: true
+  diff: false
+  notify: Restart the listener
+
+# This is what `systemctl --user enable` does, done directly because the room
+# account has no user manager running to ask until its desktop session starts.
+- name: Enable the listener for the room account
+  ansible.builtin.file:
+    src: /usr/lib/systemd/user/slonik-ears-listener.service
+    dest: "{{ ears_home }}/.config/systemd/user/default.target.wants/slonik-ears-listener.service"
+    state: link
+    owner: "{{ ears_user }}"
+    group: "{{ ears_user }}"
+    follow: false
+  notify: Restart the listener

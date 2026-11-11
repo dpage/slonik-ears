@@ -1,0 +1,33 @@
+# The password lookup writes its file the first time it is evaluated. Doing
+# that once, before any host templates a config, stops parallel hosts from
+# each generating a different token on the first run.
+- name: Generate or read the tokens on the control machine
+  ansible.builtin.assert:
+    that:
+      - ears_publish_token | length == 48
+      - not ears_admin_enabled or ears_admin_token | length == 48
+    quiet: true
+  run_once: true
+  no_log: true
+
+- name: Check that the inventory names one server
+  ansible.builtin.assert:
+    that:
+      - groups['ears_server'] | default([]) | length == 1
+    fail_msg: The inventory needs exactly one host in the ears_server group.
+    quiet: true
+  run_once: true
+
+# Checked here as well as in the listener role because the server play,
+# which runs first, builds its room list from these.
+- name: Check that every listener names its room
+  ansible.builtin.assert:
+    that:
+      - hostvars[item]['ears_room'] is defined
+      - hostvars[item]['ears_room'] is match('^[a-z0-9][a-z0-9_-]{0,63}$')
+    fail_msg: >-
+      {{ item }} needs ears_room set to a lowercase id of letters, digits,
+      hyphens and underscores, starting with a letter or digit.
+    quiet: true
+  loop: "{{ groups['ears_listeners'] | default([]) }}"
+  run_once: true

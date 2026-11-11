@@ -1,0 +1,2 @@
+# Optional address Let's Encrypt uses to warn about expiring certificates.
+ears_acme_email: ""

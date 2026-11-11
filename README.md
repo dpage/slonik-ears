@@ -140,7 +140,9 @@ sudo apt install slonik-ears-listener
 ```
 
 [Installing on Debian](https://dpage.github.io/slonik-ears/debian/) covers
-configuration, enabling the services and upgrading.
+configuration, enabling the services and upgrading. The playbooks in
+`ansible/` do all of it for a whole event, from fresh Debian installs; see
+[Deploying with Ansible](https://dpage.github.io/slonik-ears/ansible/).
 
 ### Platforms
 
@@ -176,6 +178,7 @@ The individual pages are readable as plain Markdown without building anything:
 | [Event Checklist](docs/running_an_event.md) | Planning, the day before, and the day itself |
 | [Installing](docs/installing.md) | Prerequisites, building, and platform differences |
 | [Installing on Debian](docs/debian.md) | The apt repository, and setting up a room machine or server |
+| [Deploying with Ansible](docs/ansible.md) | Building the server and every room machine from fresh Debian installs |
 | [Choosing a Model](docs/models.md) | Measured accuracy and speed on different machines |
 | [Capturing Audio](docs/audio.md) | Devices, channels, levels and permissions |
 | [Running the Server](docs/server.md) | Tokens, persistence and where to run the relay |

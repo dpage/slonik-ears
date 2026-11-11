@@ -1,0 +1,22 @@
+- name: Restart sherpa-onnx-server
+  ansible.builtin.systemd_service:
+    name: sherpa-onnx-server
+    state: restarted
+  when: ears_backend == 'parakeet'
+
+- name: Restart whisper-server
+  ansible.builtin.systemd_service:
+    name: whisper-server
+    state: restarted
+  when: ears_backend == 'whisper'
+
+# Only possible while the room account is logged in; otherwise the listener
+# starts with its desktop session at the next login.
+- name: Restart the listener
+  ansible.builtin.shell: |
+    set -e
+    if systemctl is-active --quiet "user@$(id -u {{ ears_user }}).service"; then
+      systemctl --user -M {{ ears_user }}@ daemon-reload
+      systemctl --user -M {{ ears_user }}@ restart slonik-ears-listener
+    fi
+  changed_when: true

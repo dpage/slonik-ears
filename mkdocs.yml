@@ -65,6 +65,7 @@ nav:
       - Event Checklist: running_an_event.md
       - Installing: installing.md
       - Installing on Debian: debian.md
+      - Deploying with Ansible: ansible.md
       - Choosing a Model: models.md
       - Capturing Audio: audio.md
       - Running the Server: server.md

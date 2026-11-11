@@ -1,0 +1,26 @@
+# Settings shared by the server and the listeners, kept as role defaults so
+# that anything in the inventory overrides them. A group_vars/all.yml beside
+# the playbooks would not do: it outranks the inventory's own group_vars/all.
+
+# The unprivileged account the room desktop logs in as and the listener runs
+# under.
+ears_user: ears
+
+# Tokens are generated on the control machine the first time they are needed
+# and read back from there afterwards, so every machine in the inventory gets
+# the same ones. The directory sits beside the inventory and is git-ignored.
+ears_credentials_dir: "{{ inventory_dir }}/credentials"
+ears_token_spec: chars=0123456789abcdef length=48
+ears_publish_token: "{{ lookup('ansible.builtin.password', ears_credentials_dir ~ '/publish_token ' ~ ears_token_spec) }}"
+# Set ears_admin_enabled to false to switch the organiser's page off.
+ears_admin_enabled: true
+ears_admin_token: "{{ lookup('ansible.builtin.password', ears_credentials_dir ~ '/admin_token ' ~ ears_token_spec) if ears_admin_enabled else '' }}"
+
+# Setting a domain puts Caddy in front of the server with a Let's Encrypt
+# certificate; leaving it empty serves plain HTTP on port 8080.
+ears_domain: ""
+
+# Where the listeners send their transcript, and the address attendees use.
+# Without a domain this is the server's inventory address on port 8080.
+ears_server_host: "{{ hostvars[groups['ears_server'][0]]['ansible_host'] | default(groups['ears_server'][0]) }}"
+ears_server_url: "{{ ('https://' ~ ears_domain) if ears_domain else ('http://' ~ ears_server_host ~ ':8080') }}"

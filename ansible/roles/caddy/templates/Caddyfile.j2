@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+{% if ears_acme_email %}
+
+{
+	email {{ ears_acme_email }}
+}
+{% endif %}
+
+{{ ears_domain }} {
+	reverse_proxy 127.0.0.1:8080
+}

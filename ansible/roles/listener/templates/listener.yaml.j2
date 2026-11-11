@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+#
+# The publish token is in ~{{ ears_user }}/.config/slonik-ears/listener.env.
+# Every setting is described on the Listener Options page of the documentation.
+
+server: {{ ears_server_url | to_json }}
+room: {{ ears_room | to_json }}
+title: {{ ears_room_title | to_json }}
+track: {{ ears_track | to_json }}
+language: {{ ears_language | to_json }}
+device: {{ ears_device | string | to_json }}
+channel: {{ ears_channel | string | to_json }}
+
+{% if ears_backend == 'parakeet' %}
+backend: parakeet
+parakeet_url: "ws://127.0.0.1:8082"
+{% else %}
+backend: whisper
+whisper_url: "http://127.0.0.1:8081/inference"
+{% endif %}
+
+# Relative to the service's state directory,
+# ~/.local/state/slonik-ears-listener.
+transcript_file: {{ (ears_room ~ '.jsonl') | to_json }}
+{% if ears_listener_extra %}
+
+{{ ears_listener_extra | to_nice_yaml(indent=2) }}
+{%- endif %}

@@ -1,0 +1,34 @@
+- name: Install the CA certificates the key download needs
+  ansible.builtin.apt:
+    name: ca-certificates
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the apt keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download the Slonik Ears signing key
+  ansible.builtin.get_url:
+    url: "{{ ears_apt_url }}slonik-ears.asc"
+    dest: /etc/apt/keyrings/slonik-ears.asc
+    mode: "0644"
+
+- name: Add the Slonik Ears repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/slonik-ears.sources
+    mode: "0644"
+    content: |
+      Types: deb
+      URIs: {{ ears_apt_url }}
+      Suites: stable
+      Components: main
+      Signed-By: /etc/apt/keyrings/slonik-ears.asc
+  register: ears_apt_source
+
+- name: Refresh the package lists
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ 0 if ears_apt_source is changed else 3600 }}"

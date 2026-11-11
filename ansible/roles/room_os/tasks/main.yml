@@ -1,0 +1,107 @@
+# Prepares a fresh Debian 13 install as an unattended room machine: the
+# desktop logs straight in as an unprivileged account and never sleeps or
+# locks, because the listener needs that session to reach the microphone.
+
+- name: Check that this is Debian 13
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == 'Debian'
+      - ansible_facts['distribution_major_version'] == '13'
+    fail_msg: The room machines must run Debian 13 (trixie).
+    quiet: true
+
+# The installer leaves its own sources behind, sometimes including the
+# install medium, so replace them with the network archive and backports.
+- name: Configure the Debian archive
+  ansible.builtin.copy:
+    src: debian.sources
+    dest: /etc/apt/sources.list.d/debian.sources
+    mode: "0644"
+  register: ears_debian_sources
+
+- name: Empty the installer's sources.list
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list
+    mode: "0644"
+    content: |
+      # Replaced by /etc/apt/sources.list.d/debian.sources.
+  register: ears_sources_list
+
+- name: Refresh the package lists
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ 0 if (ears_debian_sources is changed or ears_sources_list is changed) else 3600 }}"
+
+- name: Install the desktop and audio packages
+  ansible.builtin.apt:
+    name:
+      - gnome-core
+      - pipewire-audio
+      - dconf-cli
+      - ca-certificates
+    state: present
+
+- name: Install the backports kernel and MediaTek firmware
+  ansible.builtin.apt:
+    name:
+      - linux-image-amd64
+      - firmware-mediatek
+    default_release: trixie-backports
+    state: latest # noqa package-latest
+  when: ears_mt7902_wifi | bool
+  notify: Reboot the room machine
+
+- name: Create the room account
+  ansible.builtin.user:
+    name: "{{ ears_user }}"
+    comment: Slonik Ears
+    shell: /bin/bash
+    password: "!"
+    update_password: on_create
+
+# Debian's daemon.conf carries both settings commented out under [daemon], so
+# replacing those lines keeps them in the right section.
+- name: Log the room account in automatically
+  ansible.builtin.lineinfile:
+    path: /etc/gdm3/daemon.conf
+    regexp: '^#?\s*{{ item.option }}\s*='
+    line: "{{ item.option }}={{ item.value }}"
+    insertafter: '^\[daemon\]'
+  loop:
+    - { option: AutomaticLoginEnable, value: "true" }
+    - { option: AutomaticLogin, value: "{{ ears_user }}" }
+  notify: Reboot the room machine
+
+- name: Stop the machine from sleeping
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    masked: true
+  loop:
+    - sleep.target
+    - suspend.target
+    - hibernate.target
+    - hybrid-sleep.target
+
+- name: Use a system dconf database alongside the user's own
+  ansible.builtin.copy:
+    dest: /etc/dconf/profile/user
+    mode: "0644"
+    content: |
+      user-db:user
+      system-db:local
+  notify: Update dconf
+
+- name: Create the dconf settings directory
+  ansible.builtin.file:
+    path: /etc/dconf/db/local.d
+    state: directory
+    mode: "0755"
+
+- name: Keep the display awake and unlocked
+  ansible.builtin.copy:
+    src: 00-room-display
+    dest: /etc/dconf/db/local.d/00-room-display
+    mode: "0644"
+  notify:
+    - Update dconf
+    - Reboot the room machine
